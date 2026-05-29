@@ -11,7 +11,6 @@ export const placesAPI = {
     } else if (response.data && Array.isArray(response.data.data)) {
       places = response.data.data;
     }
-    console.log('[placesAPI.getMyPlaces] Final places array:', places);
     return places;
   },
 

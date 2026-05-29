@@ -23,15 +23,12 @@ export const usePlaces = (): UsePlacesReturn => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('[usePlaces] Fetching places from /places ...');
       const raw = await placesAPI.getMyPlaces();
-      console.log('[usePlaces] Raw fetched places:', raw);
       setMyPlaces(raw);
-      console.log('[usePlaces] myPlaces state set:', raw);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load places';
-      setError(errorMessage);
-      console.error('Error fetching places:', err);
+      // Non-blocking: warn instead of throwing an aggressive error so the map stays usable
+      console.warn('Non-fatal: Error fetching places:', err);
     } finally {
       setIsLoading(false);
     }
@@ -46,9 +43,8 @@ export const usePlaces = (): UsePlacesReturn => {
         const nearby = await placesAPI.getNearbyPlaces(latitude, longitude, radius);
         setNearbyPlaces(nearby);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load nearby places';
-        setError(errorMessage);
-        console.error('Error fetching nearby places:', err);
+        // Silently fail nearby fetch, allPlaces will use myPlaces as fallback
+        setNearbyPlaces([]);
       } finally {
         setIsLoading(false);
       }
@@ -63,7 +59,6 @@ export const usePlaces = (): UsePlacesReturn => {
 
   // Combine all places (own + nearby from friends)
   const allPlaces = [...myPlaces, ...nearbyPlaces];
-  console.log('[usePlaces] allPlaces:', allPlaces);
 
   return {
     myPlaces,
