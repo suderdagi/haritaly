@@ -10,31 +10,17 @@ export async function GET(req: NextRequest) {
   try {
     console.log('[GET /api/places] Request received');
     
-    let places;
-    const authHeader = req.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      const payload = verifyToken(token);
 
-      if (payload) {
-        console.log('[GET /api/places] Fetching places for user:', payload.id);
-        places = await db.place.findMany({
-          where: { userId: payload.id },
-          include: { photos: true },
-        });
-      }
-    }
+    // Always show all places for now, regardless of auth
+    console.log('[GET /api/places] Fetching all places (show all, ignore userId)');
+    const places = await db.place.findMany({
+      include: { photos: true },
+    });
 
-    if (!places) {
-      // TODO: Re-enable auth for GET /api/places once login flow is implemented.
-      console.log('[GET /api/places] Fetching all places (no auth)');
-      places = await db.place.findMany({
-        include: { photos: true },
-      });
-    }
-
-    console.log('[GET /api/places] Returning places:', places.length);
-    return NextResponse.json({ success: true, data: places.map(serializePlace) });
+    // Explicitly ensure all places have numeric latitude/longitude
+    const safePlaces = places.map((p) => serializePlace(p));
+    console.log('[GET /api/places] Returning places:', safePlaces.length, safePlaces.map(pl => ({id: pl.id, lat: typeof pl.latitude, lng: typeof pl.longitude})));
+    return NextResponse.json({ success: true, data: safePlaces });
   } catch (error) {
     console.error('[GET /api/places] Error:', error);
     const { statusCode, message } = handleError(error);
