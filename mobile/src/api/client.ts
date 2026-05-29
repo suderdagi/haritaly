@@ -1,9 +1,9 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Default baseURL for iOS simulator development.
-// If localhost does not work, override with EXPO_PUBLIC_API_URL=http://192.168.1.31:3000/api
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+// Hardcoded baseURL for iOS simulator local development. No .env, no EXPO_PUBLIC_API_URL.
+const API_BASE_URL = 'http://localhost:3001/api';
+console.log('[apiClient] FINAL API BASE URL:', API_BASE_URL);
 
 class ApiClient {
   private client: AxiosInstance;
@@ -16,6 +16,7 @@ class ApiClient {
         'Content-Type': 'application/json',
       },
     });
+    console.log('[apiClient] Using API base URL:', API_BASE_URL);
 
     // Add token to requests
     this.client.interceptors.request.use(async (config) => {
@@ -48,6 +49,7 @@ class ApiClient {
   }
 
   async get<T>(url: string, config = {}) {
+    console.log('[apiClient] GET', this.client.defaults.baseURL + url);
     return this.client.get<T>(url, config);
   }
 

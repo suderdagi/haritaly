@@ -27,7 +27,7 @@ export const MapPin: React.FC<MapPinProps> = ({ place, isUserPlace, onPress }) =
           {place.name}
         </Text>
         <Text style={styles.rating}>
-          ★ {safeRating.toFixed(1)}
+          
         </Text>
       </View>
     </TouchableOpacity>

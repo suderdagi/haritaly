@@ -23,8 +23,11 @@ export const usePlaces = (): UsePlacesReturn => {
     try {
       setIsLoading(true);
       setError(null);
-      const places = await placesAPI.getMyPlaces();
-      setMyPlaces(places);
+      console.log('[usePlaces] Fetching places from /places ...');
+      const raw = await placesAPI.getMyPlaces();
+      console.log('[usePlaces] Raw fetched places:', raw);
+      setMyPlaces(raw);
+      console.log('[usePlaces] myPlaces state set:', raw);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load places';
       setError(errorMessage);
@@ -60,6 +63,7 @@ export const usePlaces = (): UsePlacesReturn => {
 
   // Combine all places (own + nearby from friends)
   const allPlaces = [...myPlaces, ...nearbyPlaces];
+  console.log('[usePlaces] allPlaces:', allPlaces);
 
   return {
     myPlaces,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import {
   View,
   StyleSheet,
@@ -59,13 +60,26 @@ export default function MapScreen() {
     }, 300);
   };
 
+  console.log('[MapScreen] myPlaces:', myPlaces);
+  console.log('[MapScreen] nearbyPlaces:', nearbyPlaces);
+  console.log('[MapScreen] allPlaces:', allPlaces);
   const displayedPlaces = showNearbyOnly ? nearbyPlaces : allPlaces;
+  console.log('[MapScreen] displayedPlaces:', displayedPlaces);
   const uniqueDisplayedPlaces = Array.from(
     new Map(displayedPlaces.map((place) => [String(place.id), place])).values()
   );
+  console.log('[MapScreen] uniqueDisplayedPlaces (for markers):', uniqueDisplayedPlaces);
+
+  // Debug info for API and places
+  const API_BASE_URL = 'http://localhost:3001/api';
+  const debugText = `API: ${API_BASE_URL}\nPlaces count: ${allPlaces.length}\nFirst place name: ${allPlaces[0]?.name || ''}`;
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Debug info overlay */}
+      <View style={{ position: 'absolute', top: 10, left: 10, zIndex: 9999, backgroundColor: 'rgba(255,255,255,0.85)', padding: 6, borderRadius: 6 }}>
+        <Text style={{ fontSize: 12, color: '#222' }}>{debugText}</Text>
+      </View>
       {/* Map */}
       <MapView
         provider={PROVIDER_GOOGLE}

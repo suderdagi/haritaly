@@ -9,11 +9,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Friend } from '@/src/types';
 
 export default function FriendsScreen() {
-  const [friends, setFriends] = React.useState<Friend[]>([]);
-  const [pendingRequests, setPendingRequests] = React.useState<Friend[]>([]);
+  const [friends, setFriends] = React.useState([]);
+  const [pendingRequests, setPendingRequests] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -24,11 +23,11 @@ export default function FriendsScreen() {
     // TODO: Navigate to add friend screen
   };
 
-  const handleAcceptRequest = (friendId: number) => {
+  const handleAcceptRequest = (friendId) => {
     // TODO: Call API to accept friend request
   };
 
-  const handleRejectRequest = (friendId: number) => {
+  const handleRejectRequest = (friendId) => {
     // TODO: Call API to reject friend request
   };
 
@@ -48,7 +47,7 @@ export default function FriendsScreen() {
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
                       {item.firstName[0]}
-                      {item.lastName?.[0]}
+                      {item.lastName[0]}
                     </Text>
                   </View>
                   <View>
@@ -110,7 +109,7 @@ export default function FriendsScreen() {
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
                       {item.firstName[0]}
-                      {item.lastName?.[0]}
+                      {item.lastName[0]}
                     </Text>
                   </View>
                   <View>

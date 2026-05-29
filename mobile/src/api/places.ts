@@ -4,8 +4,15 @@ import { Place, Photo, ApiResponse } from '@/src/types';
 export const placesAPI = {
   // Get user's saved places
   async getMyPlaces() {
-    const response = await apiClient.get<ApiResponse<Place[]>>('/places');
-    return response.data.data || [];
+    const response = await apiClient.get('/places');
+    let places = [];
+    if (Array.isArray(response.data)) {
+      places = response.data;
+    } else if (response.data && Array.isArray(response.data.data)) {
+      places = response.data.data;
+    }
+    console.log('[placesAPI.getMyPlaces] Final places array:', places);
+    return places;
   },
 
   // Get nearby places saved by friends

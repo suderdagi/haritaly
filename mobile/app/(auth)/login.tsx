@@ -1,20 +1,35 @@
+
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/src/store/auth';
+import axios from 'axios';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Login required', 'Please enter email and password');
       return;
     }
-
-    // Temporary login behavior: redirect to /map
-    router.replace('/map');
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post('/api/auth/login', { email, password });
+      const { token, user } = response.data;
+      await login(token, user);
+      router.replace('/map');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -35,8 +50,9 @@ export default function LoginScreen() {
         onChangeText={setPassword}
         secureTextEntry
       />
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Continue</Text>
+      {error && <Text style={{ color: 'red', marginBottom: 8 }}>{error}</Text>}
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continue</Text>}
       </TouchableOpacity>
     </View>
   );
