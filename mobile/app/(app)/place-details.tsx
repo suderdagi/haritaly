@@ -9,10 +9,13 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Share,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { placesAPI } from '@/src/api/places';
+import { usePlaces } from '@/src/hooks/usePlaces';
+import { useAuth } from '@/src/store/auth';
 import { Place, Photo } from '@/src/types';
 
 export default function PlaceDetailsScreen() {
@@ -24,6 +27,10 @@ export default function PlaceDetailsScreen() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [photosLoading, setPhotosLoading] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  const { allPlaces } = usePlaces();
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     if (placeId) {
@@ -32,23 +39,36 @@ export default function PlaceDetailsScreen() {
   }, [placeId]);
 
   const loadPlaceDetails = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const placeData = await placesAPI.getPlaceDetails(placeId);
-      if (!placeData) {
-        throw new Error('Place not found');
+      if (placeData) {
+        setPlace(placeData);
+      } else {
+        // Fallback: try to find place in local combined places
+        const fallback = allPlaces.find((p) => Number(p.id) === Number(placeId));
+        if (fallback) setPlace(fallback);
       }
-      setPlace(placeData);
-
-      // Load photos
-      setPhotosLoading(true);
-      const photosData = await placesAPI.getPlacePhotos(placeId);
-      setPhotos(photosData);
-    } catch (error) {
-      console.error('Error loading place details:', error);
-      Alert.alert('Error', 'Failed to load place details');
-      router.back();
+    } catch (err) {
+      console.warn('Non-fatal: failed to load place details from API', err);
+      // Fallback to local cache if available
+      const fallback = allPlaces.find((p) => Number(p.id) === Number(placeId));
+      if (fallback) {
+        setPlace(fallback);
+      } else {
+        // keep place null and show a friendly message below
+        console.warn('No local fallback available for place', placeId);
+      }
     } finally {
+      // Attempt to load photos but do not let photo failures block the screen
+      try {
+        setPhotosLoading(true);
+        const photosData = await placesAPI.getPlacePhotos(placeId);
+        setPhotos(photosData);
+      } catch (photoErr) {
+        console.warn('Failed to load photos for place', placeId, photoErr);
+        setPhotos([]);
+      }
       setLoading(false);
       setPhotosLoading(false);
     }
@@ -81,6 +101,44 @@ export default function PlaceDetailsScreen() {
         },
       ]
     );
+  };
+
+  const handleOpenInMaps = () => {
+    if (!place) return;
+    const lat = place.latitude;
+    const lng = place.longitude;
+    const label = encodeURIComponent(place.name);
+    const url = Platform.select({
+      ios: `maps:0,0?q=${lat},${lng}(${label})`,
+      android: `geo:0,0?q=${lat},${lng}(${label})`,
+      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+    });
+    try {
+      // Try to navigate using router; fallback handled by platform default
+      // @ts-ignore
+      router.push(url as any);
+    } catch (e) {
+      const web = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+      // @ts-ignore
+      router.push(web as any);
+    }
+  };
+
+  const handleToggleFavorite = () => {
+    setIsFavorite((v) => !v);
+    // TODO: persist favorite to backend when available
+  };
+
+  const handleShare = async () => {
+    if (!place) return;
+    try {
+      await Share.share({
+        title: place.name,
+        message: `${place.name} - ${place.address || ''}\nhttps://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`,
+      });
+    } catch (e) {
+      console.warn('Share failed', e);
+    }
   };
 
   const renderStars = (rating?: number | string | null) => {
@@ -179,59 +237,83 @@ export default function PlaceDetailsScreen() {
           </ScrollView>
         )}
 
-        {/* Basic Info */}
-        <View style={styles.section}>
-          <View style={styles.header}>
-            <View style={styles.titleContainer}>
+        {/* Header / Basic Info */}
+        <View style={[styles.section, styles.headerSection]}>
+          <View style={styles.headerRow}>
+            <View style={styles.titleCol}>
               <Text style={styles.name}>{place.name}</Text>
-              {place.category && (
-                <Text style={styles.category}>{place.category}</Text>
-              )}
+                <View style={styles.metaRow}>
+                  {place.category ? (
+                    <View style={styles.badge}><Text style={styles.badgeText}>{place.category}</Text></View>
+                  ) : null}
+                  <MaterialCommunityIcons name="map-marker" size={16} color="#ec4899" style={{ marginLeft: 8 }} />
+                  <Text style={styles.smallMuted}>{place.address ? place.address.split(',')[place.address.split(',').length-1].trim() : ''}</Text>
+                </View>
+                {/* Recommendation info */}
+                {place.user ? (
+                  <Text style={styles.recommendedText}>Recommended by {place.user.firstName ?? 'a friend'}</Text>
+                ) : place.userId && currentUser && place.userId !== currentUser.id ? (
+                  <Text style={styles.recommendedText}>Recommended by a friend</Text>
+                ) : null}
             </View>
-            {Number.isFinite(Number(place.rating ?? 0)) && Number(place.rating ?? 0) > 0 && (
-              <View style={styles.ratingContainer}>
-                {renderStars(place.rating)}
-                <Text style={styles.ratingText}>{Number(place.rating ?? 0).toFixed(1)}/5</Text>
-              </View>
-            )}
+
+            <View style={styles.actionsCol}>
+              <TouchableOpacity onPress={handleToggleFavorite} style={[styles.iconButton, isFavorite && styles.iconButtonActive]}>
+                <MaterialCommunityIcons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? '#fff' : '#ec4899'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
+                <MaterialCommunityIcons name="pencil" size={20} color="#6b7280" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} style={styles.iconButtonDanger}>
+                <MaterialCommunityIcons name="delete" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {place.address && (
-            <View style={styles.infoRow}>
-              <MaterialCommunityIcons name="map-marker" size={20} color="#666" />
-              <Text style={styles.address}>{place.address}</Text>
-            </View>
-          )}
+          {/* Action buttons */}
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleOpenInMaps}>
+              <MaterialCommunityIcons name="map" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>Open in Maps</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionBtnOutline} onPress={handleShare}>
+              <MaterialCommunityIcons name="share-variant" size={18} color="#6b7280" />
+              <Text style={styles.actionBtnOutlineText}>Share</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Favorites */}
-        {(place.favoriteFood || place.favoriteDrink) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Favorites</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Favorites</Text>
+          {place.favoriteFood ? (
+            <View style={styles.favoriteRow}>
+              <MaterialCommunityIcons name="food" size={20} color="#FF6B35" />
+              <Text style={styles.favoriteText}>{place.favoriteFood}</Text>
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No favorite food listed.</Text>
+          )}
 
-            {place.favoriteFood && (
-              <View style={styles.favoriteRow}>
-                <MaterialCommunityIcons name="food" size={20} color="#FF6B35" />
-                <Text style={styles.favoriteText}>{place.favoriteFood}</Text>
-              </View>
-            )}
-
-            {place.favoriteDrink && (
-              <View style={styles.favoriteRow}>
-                <MaterialCommunityIcons name="cup" size={20} color="#4A90E2" />
-                <Text style={styles.favoriteText}>{place.favoriteDrink}</Text>
-              </View>
-            )}
-          </View>
-        )}
+          {place.favoriteDrink ? (
+            <View style={styles.favoriteRow}>
+              <MaterialCommunityIcons name="cup" size={20} color="#4A90E2" />
+              <Text style={styles.favoriteText}>{place.favoriteDrink}</Text>
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No favorite drink listed.</Text>
+          )}
+        </View>
 
         {/* Notes */}
-        {place.notes && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notes</Text>
+          {place.notes ? (
             <Text style={styles.notes}>{place.notes}</Text>
-          </View>
-        )}
+          ) : (
+            <Text style={styles.emptyText}>No description yet.</Text>
+          )}
+        </View>
 
         {/* Metadata */}
         <View style={styles.section}>
@@ -245,10 +327,13 @@ export default function PlaceDetailsScreen() {
           </View>
 
           <View style={styles.metadataRow}>
-            <Text style={styles.metadataLabel}>Location:</Text>
-            <Text style={styles.metadataValue}>
-              {place.latitude.toFixed(6)}, {place.longitude.toFixed(6)}
-            </Text>
+            <Text style={styles.metadataLabel}>Address:</Text>
+            <Text style={styles.metadataValue}>{place.address || 'No address added.'}</Text>
+          </View>
+
+          <View style={styles.metadataRow}>
+            <Text style={styles.metadataLabel}>Coordinates:</Text>
+            <Text style={styles.metadataValue}>{place.latitude.toFixed(6)} · {place.longitude.toFixed(6)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -401,5 +486,104 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  /* New header & action styles */
+  headerSection: {
+    paddingBottom: 8,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  titleCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  smallMuted: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginLeft: 6,
+  },
+  actionsCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 8,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  iconButtonActive: {
+    backgroundColor: '#ec4899',
+    borderColor: '#ec4899',
+  },
+  iconButtonDanger: {
+    backgroundColor: '#FF3B30',
+    padding: 8,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ec4899',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  actionBtnText: {
+    color: '#fff',
+    marginLeft: 8,
+    fontWeight: '600',
+  },
+  actionBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  actionBtnOutlineText: {
+    color: '#6b7280',
+    marginLeft: 8,
+    fontWeight: '600',
+  },
+  badge: {
+    backgroundColor: '#FCE7F3',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  badgeText: {
+    color: '#9f1239',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: '#9CA3AF',
+    fontSize: 14,
+  },
+  recommendedText: {
+    marginTop: 6,
+    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

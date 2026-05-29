@@ -26,9 +26,11 @@ export const MapPin: React.FC<MapPinProps> = ({ place, isUserPlace, onPress }) =
         <Text style={styles.placeName} numberOfLines={1}>
           {place.name}
         </Text>
-        <Text style={styles.rating}>
-          
-        </Text>
+        {place.user && !isUserPlace ? (
+          <Text style={styles.subtitle} numberOfLines={1}>{place.user.firstName ? `${place.user.firstName}'s pick` : 'Friend\'s pick'}</Text>
+        ) : (
+          <Text style={styles.rating}></Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -80,6 +82,11 @@ const styles = StyleSheet.create({
   rating: {
     fontSize: 11,
     color: '#f59e0b',
+    marginTop: 2,
+  },
+  subtitle: {
+    fontSize: 11,
+    color: '#6b7280',
     marginTop: 2,
   },
 });

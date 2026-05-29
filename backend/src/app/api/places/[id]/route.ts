@@ -20,14 +20,41 @@ export async function GET(
 
     const place = await db.place.findUnique({
       where: { id: placeId },
-      include: { photos: true },
+      include: { photos: true, user: true },
     });
 
     if (!place) {
       throw new NotFoundError('Place not found');
     }
 
-    return NextResponse.json({ success: true, data: serializePlace(place) });
+    // Build a plain JS object to avoid serialization issues (Decimal, Date, etc.)
+    const safePlace = {
+      id: place.id,
+      userId: place.userId,
+      name: place.name,
+      description: place.description ?? null,
+      category: place.category ?? null,
+      latitude: Number(place.latitude?.toString()),
+      longitude: Number(place.longitude?.toString()),
+      address: place.address ?? null,
+      rating: place.rating ? Number(place.rating.toString()) : null,
+      notes: place.notes ?? null,
+      favoriteFood: place.favoriteFood ?? null,
+      favoriteDrink: place.favoriteDrink ?? null,
+      createdAt: place.createdAt ? place.createdAt.toISOString() : null,
+      updatedAt: place.updatedAt ? place.updatedAt.toISOString() : null,
+      photos: (place.photos || []).map((p: any) => ({ id: p.id, url: p.url, uploadedAt: p.uploadedAt?.toISOString() })),
+      user: place.user
+        ? {
+            id: place.user.id,
+            firstName: place.user.firstName ?? null,
+            lastName: place.user.lastName ?? null,
+            profilePicture: place.user.profilePicture ?? null,
+          }
+        : null,
+    };
+
+    return NextResponse.json({ success: true, data: safePlace });
   } catch (error) {
     const { statusCode, message } = handleError(error);
     return NextResponse.json({ error: message }, { status: statusCode });
