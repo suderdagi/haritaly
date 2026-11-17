@@ -1,53 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
-import { verifyToken } from '@/src/lib/jwt';
-import { AuthenticationError, NotFoundError, handleError } from '@/src/lib/errors';
+import { NextRequest } from 'next/server';
+import { respondToRequest } from '@/src/lib/friends';
+import { fail, ok, parseId, requireAuth } from '@/src/lib/http';
 
-// Accept friend request
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// POST /api/friends/:id/accept — :id is the friend request (friendship) ID
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AuthenticationError();
-    }
+    const { id: userId } = requireAuth(req);
+    const requestId = parseId((await params).id, 'request ID');
 
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-
-    if (!payload) {
-      throw new AuthenticationError();
-    }
-
-    const { id } = await params;
-    const friendRequestId = parseInt(id, 10);
-
-    if (isNaN(friendRequestId)) {
-      throw new NotFoundError('Invalid request ID');
-    }
-
-    const friendship = await db.friendship.findUnique({
-      where: { id: friendRequestId },
-    });
-
-    if (!friendship) {
-      throw new NotFoundError('Friend request not found');
-    }
-
-    if (friendship.receiverId !== payload.id) {
-      throw new AuthenticationError('Cannot accept this request');
-    }
-
-    const updated = await db.friendship.update({
-      where: { id: friendRequestId },
-      data: { status: 'ACCEPTED' },
-    });
-
-    return NextResponse.json(updated);
+    return ok(await respondToRequest(userId, requestId, 'ACCEPTED'));
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }
