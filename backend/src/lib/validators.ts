@@ -1,40 +1,64 @@
 import { z } from 'zod';
 
-// Auth Validators
+const optionalText = (max: number) => z.string().trim().max(max).optional().nullable();
+
+// Auth
 export const RegisterSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  email: z.string().trim().toLowerCase().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  firstName: z.string().trim().max(50).optional(),
+  lastName: z.string().trim().max(50).optional(),
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password required'),
+  email: z.string().trim().toLowerCase().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 export const UpdateProfileSchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  bio: z.string().optional(),
+  firstName: z.string().trim().max(50).optional(),
+  lastName: z.string().trim().max(50).optional(),
+  bio: z.string().trim().max(300).optional(),
   profilePicture: z.string().url().optional(),
 });
 
-// Place Validators
+// Places
+export const PLACE_CATEGORIES = [
+  'Restaurant',
+  'Cafe',
+  'Bar',
+  'Park',
+  'Museum',
+  'Shopping',
+  'Other',
+] as const;
+
 export const CreatePlaceSchema = z.object({
-  name: z.string().min(1, 'Place name required'),
-  description: z.string().optional().nullable(),
-  category: z.string().optional().nullable(),
+  name: z.string().trim().min(1, 'Place name is required').max(100),
+  description: optionalText(500),
+  category: z.enum(PLACE_CATEGORIES).optional().nullable(),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
-  address: z.string().optional().nullable(),
-  rating: z.union([z.number().min(0).max(5), z.null(), z.undefined()]).optional().default(0),
-  notes: z.string().optional().nullable(),
-  favoriteFood: z.string().optional().nullable(),
-  favoriteDrink: z.string().optional().nullable(),
+  address: optionalText(200),
+  rating: z.number().min(0).max(5).optional().nullable(),
+  notes: optionalText(1000),
+  favoriteFood: optionalText(100),
+  favoriteDrink: optionalText(100),
 });
 
 export const UpdatePlaceSchema = CreatePlaceSchema.partial();
+
+export const NearbyQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+  radius: z.coerce.number().min(100).max(50_000).default(5000),
+  category: z.enum(PLACE_CATEGORIES).optional(),
+});
+
+// Friends
+export const FriendRequestSchema = z.object({
+  receiverId: z.number().int().positive('receiverId is required'),
+});
 
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;

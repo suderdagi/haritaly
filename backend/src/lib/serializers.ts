@@ -1,26 +1,17 @@
-function toNumber(value: unknown): number {
-  if (typeof value === 'number') {
-    return value;
-  }
+type DecimalLike = { toString(): string } | number;
 
-  return Number(value?.toString());
+function toNumber(value: DecimalLike): number {
+  return typeof value === 'number' ? value : Number(value.toString());
 }
 
-function toNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  return toNumber(value);
-}
-
-export function serializePlace<T extends { latitude: unknown; longitude: unknown; rating?: unknown }>(
-  place: T
-) {
+/** Prisma returns Decimal objects for coordinates and rating; the API exposes plain numbers. */
+export function serializePlace<
+  T extends { latitude: DecimalLike; longitude: DecimalLike; rating?: DecimalLike | null },
+>(place: T) {
   return {
     ...place,
     latitude: toNumber(place.latitude),
     longitude: toNumber(place.longitude),
-    rating: toNullableNumber(place.rating),
+    rating: place.rating == null ? null : toNumber(place.rating),
   };
 }

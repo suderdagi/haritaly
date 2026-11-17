@@ -1,10 +1,6 @@
-import { NextResponse } from 'next/server';
+import { ok } from '@/src/lib/http';
 
+// Tokens are stateless (JWT), so logging out only means the client deletes its token.
 export async function POST() {
-  // This is a simple logout that just returns success
-  // The actual token is managed on the client side
-  return NextResponse.json(
-    { message: 'Logged out successfully' },
-    { status: 200 }
-  );
+  return ok({ message: 'Logged out' });
 }

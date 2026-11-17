@@ -1,168 +1,52 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/src/lib/db';
-import { verifyToken } from '@/src/lib/jwt';
 import { UpdatePlaceSchema } from '@/src/lib/validators';
-import { AuthenticationError, NotFoundError, ValidationError, handleError } from '@/src/lib/errors';
 import { serializePlace } from '@/src/lib/serializers';
+import { getOwnedPlace, getVisiblePlace, placeInclude } from '@/src/lib/places';
+import { fail, ok, parseId, requireAuth } from '@/src/lib/http';
 
-// Get place details
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+type Params = { params: Promise<{ id: string }> };
+
+export async function GET(req: NextRequest, { params }: Params) {
   try {
-    const { id } = await params;
-    const placeId = parseInt(id, 10);
+    const { id: userId } = requireAuth(req);
+    const placeId = parseId((await params).id, 'place ID');
 
-    if (isNaN(placeId)) {
-      throw new NotFoundError('Invalid place ID');
-    }
-
-    const place = await db.place.findUnique({
-      where: { id: placeId },
-      include: { photos: true, user: true },
-    });
-
-    if (!place) {
-      throw new NotFoundError('Place not found');
-    }
-
-    // Build a plain JS object to avoid serialization issues (Decimal, Date, etc.)
-    const safePlace = {
-      id: place.id,
-      userId: place.userId,
-      name: place.name,
-      description: place.description ?? null,
-      category: place.category ?? null,
-      latitude: Number(place.latitude?.toString()),
-      longitude: Number(place.longitude?.toString()),
-      address: place.address ?? null,
-      rating: place.rating ? Number(place.rating.toString()) : null,
-      notes: place.notes ?? null,
-      favoriteFood: place.favoriteFood ?? null,
-      favoriteDrink: place.favoriteDrink ?? null,
-      createdAt: place.createdAt ? place.createdAt.toISOString() : null,
-      updatedAt: place.updatedAt ? place.updatedAt.toISOString() : null,
-      photos: (place.photos || []).map((p: any) => ({ id: p.id, url: p.url, uploadedAt: p.uploadedAt?.toISOString() })),
-      user: place.user
-        ? {
-            id: place.user.id,
-            firstName: place.user.firstName ?? null,
-            lastName: place.user.lastName ?? null,
-            profilePicture: place.user.profilePicture ?? null,
-          }
-        : null,
-    };
-
-    return NextResponse.json({ success: true, data: safePlace });
+    const place = await getVisiblePlace(userId, placeId);
+    return ok(serializePlace(place));
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }
 
-// Update place
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AuthenticationError();
-    }
+    const { id: userId } = requireAuth(req);
+    const placeId = parseId((await params).id, 'place ID');
+    await getOwnedPlace(userId, placeId);
 
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-
-    if (!payload) {
-      throw new AuthenticationError();
-    }
-
-    const { id } = await params;
-    const placeId = parseInt(id, 10);
-
-    if (isNaN(placeId)) {
-      throw new NotFoundError('Invalid place ID');
-    }
-
-    const place = await db.place.findUnique({
-      where: { id: placeId },
-    });
-
-    if (!place) {
-      throw new NotFoundError('Place not found');
-    }
-
-    if (place.userId !== payload.id) {
-      throw new AuthenticationError('Cannot update this place');
-    }
-
-    const body = await req.json();
-
-    // Validate input
-    const validationResult = UpdatePlaceSchema.safeParse(body);
-    if (!validationResult.success) {
-      throw new ValidationError(validationResult.error.errors[0].message);
-    }
-
+    const data = UpdatePlaceSchema.parse(await req.json());
     const updated = await db.place.update({
       where: { id: placeId },
-      data: validationResult.data,
-      include: { photos: true },
+      data,
+      include: placeInclude,
     });
 
-    return NextResponse.json({ success: true, data: serializePlace(updated) });
+    return ok(serializePlace(updated));
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }
 
-// Delete place
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AuthenticationError();
-    }
+    const { id: userId } = requireAuth(req);
+    const placeId = parseId((await params).id, 'place ID');
+    await getOwnedPlace(userId, placeId);
 
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-
-    if (!payload) {
-      throw new AuthenticationError();
-    }
-
-    const { id } = await params;
-    const placeId = parseInt(id, 10);
-
-    if (isNaN(placeId)) {
-      throw new NotFoundError('Invalid place ID');
-    }
-
-    const place = await db.place.findUnique({
-      where: { id: placeId },
-    });
-
-    if (!place) {
-      throw new NotFoundError('Place not found');
-    }
-
-    if (place.userId !== payload.id) {
-      throw new AuthenticationError('Cannot delete this place');
-    }
-
-    await db.place.delete({
-      where: { id: placeId },
-    });
-
-    return NextResponse.json({ success: true, message: 'Place deleted' });
+    await db.place.delete({ where: { id: placeId } });
+    return ok({ id: placeId });
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }

@@ -1,74 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/src/lib/db';
-import { verifyToken } from '@/src/lib/jwt';
+import { NotFoundError } from '@/src/lib/errors';
 import { UpdateProfileSchema } from '@/src/lib/validators';
-import { AuthenticationError, ValidationError, NotFoundError, handleError } from '@/src/lib/errors';
+import { publicUserSelect } from '@/src/lib/selects';
+import { fail, ok, requireAuth } from '@/src/lib/http';
 
-// Get user profile
+const profileSelect = {
+  ...publicUserSelect,
+  createdAt: true,
+  _count: { select: { places: true } },
+} as const;
+
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AuthenticationError();
-    }
-
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-
-    if (!payload) {
-      throw new AuthenticationError();
-    }
-
-    const user = await db.user.findUnique({
-      where: { id: payload.id },
-    });
+    const { id: userId } = requireAuth(req);
+    const user = await db.user.findUnique({ where: { id: userId }, select: profileSelect });
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const { password: _, ...userWithoutPassword } = user;
-
-    return NextResponse.json(userWithoutPassword);
+    return ok(user);
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }
 
-// Update user profile
 export async function PUT(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AuthenticationError();
-    }
+    const { id: userId } = requireAuth(req);
+    const data = UpdateProfileSchema.parse(await req.json());
 
-    const token = authHeader.slice(7);
-    const payload = verifyToken(token);
-
-    if (!payload) {
-      throw new AuthenticationError();
-    }
-
-    const body = await req.json();
-
-    // Validate input
-    const validationResult = UpdateProfileSchema.safeParse(body);
-    if (!validationResult.success) {
-      throw new ValidationError(validationResult.error.errors[0].message);
-    }
-
-    const user = await db.user.update({
-      where: { id: payload.id },
-      data: validationResult.data,
-    });
-
-    const { password: _, ...userWithoutPassword } = user;
-
-    return NextResponse.json(userWithoutPassword);
+    const user = await db.user.update({ where: { id: userId }, data, select: profileSelect });
+    return ok(user);
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }

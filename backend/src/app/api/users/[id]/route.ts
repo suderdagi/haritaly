@@ -1,32 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/src/lib/db';
-import { NotFoundError, handleError } from '@/src/lib/errors';
+import { NotFoundError } from '@/src/lib/errors';
+import { publicUserSelect } from '@/src/lib/selects';
+import { fail, ok, parseId, requireAuth } from '@/src/lib/http';
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
-    const userId = parseInt(id, 10);
-
-    if (isNaN(userId)) {
-      throw new NotFoundError('Invalid user ID');
-    }
+    requireAuth(req);
+    const userId = parseId((await params).id, 'user ID');
 
     const user = await db.user.findUnique({
       where: { id: userId },
+      select: { ...publicUserSelect, _count: { select: { places: true } } },
     });
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const { password: _, ...userWithoutPassword } = user;
-
-    return NextResponse.json(userWithoutPassword);
+    return ok(user);
   } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+    return fail(error);
   }
 }
