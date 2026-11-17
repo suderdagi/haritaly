@@ -29,7 +29,9 @@ export const PLACE_CATEGORIES = [
   'Bar',
   'Park',
   'Museum',
-  'Shopping',
+  'Shop',
+  'Hotel',
+  'Attraction',
   'Other',
 ] as const;
 

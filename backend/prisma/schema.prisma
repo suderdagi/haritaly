@@ -26,6 +26,7 @@ model User {
   sentFriendRequests    Friendship[]    @relation("sender")
   receivedFriendRequests Friendship[]   @relation("receiver")
   places                Place[]
+  favorites             Favorite[]
 
   @@map("User")
 }
@@ -70,6 +71,7 @@ model Place {
 
   user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   photos         Photo[]
+  favorites      Favorite[]
 
   @@index([userId])
   @@index([latitude, longitude])
@@ -86,4 +88,17 @@ model Photo {
 
   @@index([placeId])
   @@map("Photo")
+}
+
+model Favorite {
+  userId    Int
+  placeId   Int
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, placeId])
+  @@index([placeId])
+  @@map("Favorite")
 }

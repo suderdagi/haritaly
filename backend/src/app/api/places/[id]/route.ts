@@ -13,7 +13,11 @@ export async function GET(req: NextRequest, { params }: Params) {
     const placeId = parseId((await params).id, 'place ID');
 
     const place = await getVisiblePlace(userId, placeId);
-    return ok(serializePlace(place));
+    const favorite = await db.favorite.findUnique({
+      where: { userId_placeId: { userId, placeId } },
+    });
+
+    return ok({ ...serializePlace(place), isFavorite: favorite !== null });
   } catch (error) {
     return fail(error);
   }

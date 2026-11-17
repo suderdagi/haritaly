@@ -13,6 +13,8 @@ import * as nearby from '@/src/app/api/places/nearby/route';
 import * as friends from '@/src/app/api/friends/route';
 import * as requests from '@/src/app/api/friends/requests/route';
 import * as accept from '@/src/app/api/friends/[id]/accept/route';
+import * as favorite from '@/src/app/api/places/[id]/favorite/route';
+import * as favorites from '@/src/app/api/favorites/route';
 import * as userSearch from '@/src/app/api/users/search/route';
 
 process.env.JWT_SECRET ??= 'test-secret';
@@ -39,6 +41,7 @@ async function signUp(email: string, firstName: string) {
 }
 
 async function reset() {
+  await db.favorite.deleteMany();
   await db.photo.deleteMany();
   await db.place.deleteMany();
   await db.friendship.deleteMany();
@@ -150,5 +153,21 @@ describe('places', () => {
   it('lets friends view place details', async () => {
     const res = await place.GET(request(`/api/places/${placeId}`, { token: sude.token }), params(placeId));
     expect(res.status).toBe(200);
+    expect((await res.json()).data.isFavorite).toBe(false);
+  });
+
+  it('adds and removes a friend\'s place from favorites', async () => {
+    const add = () =>
+      favorite.POST(request(`/api/places/${placeId}/favorite`, { method: 'POST', token: sude.token }), params(placeId));
+
+    expect((await add()).status).toBe(200);
+    expect((await add()).status).toBe(200); // idempotent
+
+    let res: Response = await favorites.GET(request('/api/favorites', { token: sude.token }));
+    expect((await res.json()).data).toHaveLength(1);
+
+    await favorite.DELETE(request(`/api/places/${placeId}/favorite`, { method: 'DELETE', token: sude.token }), params(placeId));
+    res = await favorites.GET(request('/api/favorites', { token: sude.token }));
+    expect((await res.json()).data).toHaveLength(0);
   });
 });
