@@ -1,95 +1,92 @@
-
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { Link, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { authAPI } from '@/src/api/auth';
+import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
-import axios from 'axios';
+import { authStyles as styles } from '@/src/components/AuthForm/styles';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Login required', 'Please enter email and password');
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
-      const { token, user } = response.data;
-      await login(token, user);
-      router.replace('/map');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Login failed');
+      const { token, user } = await authAPI.login({ email: email.trim(), password });
+      await signIn(token, user);
+      router.replace('/(app)/map');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Login failed'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      {error && <Text style={{ color: 'red', marginBottom: 8 }}>{error}</Text>}
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continue</Text>}
-      </TouchableOpacity>
-    </View>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <MaterialCommunityIcons name="map-marker-radius" size={56} color="#6366f1" style={styles.logo} />
+        <Text style={styles.title}>Welcome back</Text>
+        <Text style={styles.subtitle}>See the places your friends love</Text>
+
+        <View style={styles.row}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+        </View>
+        <View style={styles.row}>
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="password"
+            onSubmitEditing={canSubmit ? handleLogin : undefined}
+          />
+        </View>
+
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        <TouchableOpacity
+          style={[styles.button, !canSubmit && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={!canSubmit}
+        >
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log in</Text>}
+        </TouchableOpacity>
+
+        <Text style={styles.switchText}>
+          Don&apos;t have an account?{' '}
+          <Link href="/(auth)/register" replace style={styles.switchLink}>
+            Sign up
+          </Link>
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 24,
-  },
-  input: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    fontSize: 16,
-  },
-  button: {
-    width: '100%',
-    backgroundColor: '#6366f1',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});

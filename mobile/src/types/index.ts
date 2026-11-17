@@ -1,39 +1,14 @@
-// User types
 export interface User {
   id: number;
   email: string;
-  firstName: string;
-  lastName: string;
-  profilePicture?: string;
-  bio?: string;
-  latitude?: number;
-  longitude?: number;
-  lastLocationUpdate?: string;
-  createdAt: string;
-  updatedAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  profilePicture?: string | null;
+  bio?: string | null;
+  createdAt?: string;
+  _count?: { places: number };
 }
 
-// Place types
-export interface Place {
-  id: number;
-  userId: number;
-  name: string;
-  description?: string;
-  category?: string;
-  latitude: number;
-  longitude: number;
-  address?: string;
-  rating?: number;
-  notes?: string;
-  favoriteFood?: string;
-  favoriteDrink?: string;
-  createdAt: string;
-  updatedAt: string;
-  photos?: Photo[];
-  user?: User; // For displaying who saved the place
-}
-
-// Photo types
 export interface Photo {
   id: number;
   placeId: number;
@@ -41,17 +16,61 @@ export interface Photo {
   uploadedAt: string;
 }
 
-// Friend types
-export interface Friend {
+export interface Place {
   id: number;
-  email: string;
-  firstName: string;
-  lastName: string;
-  profilePicture?: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  userId: number;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+  rating?: number | null;
+  notes?: string | null;
+  favoriteFood?: string | null;
+  favoriteDrink?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  photos?: Photo[];
+  user?: User;
+  /** Meters from the search center, only set by the nearby endpoint */
+  distance?: number;
+  isFavorite?: boolean;
 }
 
-// Auth types
+export type PlaceInput = {
+  name: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  category?: string;
+  address?: string;
+  rating?: number;
+  notes?: string;
+  favoriteFood?: string;
+  favoriteDrink?: string;
+};
+
+export interface Friend extends User {
+  friendshipId: number;
+  since: string;
+}
+
+export interface FriendRequest {
+  id: number;
+  senderId: number;
+  receiverId: number;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  createdAt: string;
+  sender: User;
+}
+
+export type Relation = 'FRIEND' | 'REQUEST_SENT' | 'REQUEST_RECEIVED' | 'NONE';
+
+export interface UserSearchResult extends User {
+  relation: Relation;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;
@@ -65,11 +84,10 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
 }
 
-// Map types
 export interface MapRegion {
   latitude: number;
   longitude: number;
@@ -77,17 +95,14 @@ export interface MapRegion {
   longitudeDelta: number;
 }
 
-// API Response types
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
-  message?: string;
 }
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-}
+export const displayName = (user: Pick<User, 'firstName' | 'lastName' | 'email'>) =>
+  [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+
+export const initials = (user: Pick<User, 'firstName' | 'lastName' | 'email'>) =>
+  ((user.firstName?.[0] ?? '') + (user.lastName?.[0] ?? '') || user.email[0]).toUpperCase();

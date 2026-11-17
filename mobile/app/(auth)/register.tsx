@@ -1,98 +1,109 @@
-
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { Link, useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { authAPI } from '@/src/api/auth';
+import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
-import axios from 'axios';
+import { authStyles as styles } from '@/src/components/AuthForm/styles';
+
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { register } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const { signIn } = useAuth();
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const update = (field: keyof typeof form) => (value: string) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
+
   const handleRegister = async () => {
-    if (!email || !password) {
-      Alert.alert('Registration required', 'Please enter email and password');
+    if (form.password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.post('/api/auth/register', {
-        email,
-        password,
-        firstName,
-        lastName,
+      const { token, user } = await authAPI.register({
+        email: form.email.trim(),
+        password: form.password,
+        firstName: form.firstName.trim() || undefined,
+        lastName: form.lastName.trim() || undefined,
       });
-      const { token, user } = response.data;
-      await register(token, user);
-      router.replace('/map');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Registration failed');
+      await signIn(token, user);
+      router.replace('/(app)/map');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }
   };
 
+  const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && !loading;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Register</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="First Name"
-        value={firstName}
-        onChangeText={setFirstName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Last Name"
-        value={lastName}
-        onChangeText={setLastName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      {error && <Text style={{ color: 'red', marginBottom: 8 }}>{error}</Text>}
-      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continue</Text>}
-      </TouchableOpacity>
-    </View>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <MaterialCommunityIcons name="map-marker-plus" size={56} color="#6366f1" style={styles.logo} />
+        <Text style={styles.title}>Create an account</Text>
+        <Text style={styles.subtitle}>Save your places and share them with friends</Text>
+
+        <View style={styles.row}>
+          <TextInput style={styles.input} placeholder="First name" value={form.firstName} onChangeText={update('firstName')} />
+          <TextInput style={styles.input} placeholder="Last name" value={form.lastName} onChangeText={update('lastName')} />
+        </View>
+        <View style={styles.row}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={form.email}
+            onChangeText={update('email')}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+        </View>
+        <View style={styles.row}>
+          <TextInput
+            style={styles.input}
+            placeholder={`Password (min. ${MIN_PASSWORD_LENGTH} characters)`}
+            value={form.password}
+            onChangeText={update('password')}
+            secureTextEntry
+            autoComplete="new-password"
+          />
+        </View>
+
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        <TouchableOpacity
+          style={[styles.button, !canSubmit && styles.buttonDisabled]}
+          onPress={handleRegister}
+          disabled={!canSubmit}
+        >
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
+        </TouchableOpacity>
+
+        <Text style={styles.switchText}>
+          Already have an account?{' '}
+          <Link href="/(auth)/login" replace style={styles.switchLink}>
+            Log in
+          </Link>
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 16,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-});

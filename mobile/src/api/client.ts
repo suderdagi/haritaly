@@ -1,66 +1,67 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiResponse } from '@/src/types';
 
-// Hardcoded baseURL for iOS simulator local development. No .env, no EXPO_PUBLIC_API_URL.
-const API_BASE_URL = 'http://localhost:3001/api';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+export const TOKEN_KEY = 'userToken';
 
-class ApiClient {
-  private client: AxiosInstance;
+const http = axios.create({
+  baseURL: API_URL,
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+});
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Add token to requests
-    this.client.interceptors.request.use(async (config) => {
-      try {
-        const token = await AsyncStorage.getItem('userToken');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-      } catch (error) {
-        console.error('[API] Error getting token:', error);
-      }
-      return config;
-    });
-
-    // Add response error logging (warning for non-fatal failures)
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error: AxiosError) => {
-        console.warn('[API] Request failed:', {
-          url: error.config?.url,
-          method: error.config?.method,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message,
-        });
-        return Promise.reject(error);
-      }
-    );
+http.interceptors.request.use(async (config) => {
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
+  return config;
+});
 
-  async get<T>(url: string, config = {}) {
-    return this.client.get<T>(url, config);
-  }
-
-  async post<T>(url: string, data = {}, config = {}) {
-    return this.client.post<T>(url, data, config);
-  }
-
-  async put<T>(url: string, data = {}, config = {}) {
-    return this.client.put<T>(url, data, config);
-  }
-
-  async delete<T>(url: string, config = {}) {
-    return this.client.delete<T>(url, config);
-  }
+// Lets the auth store log the user out when the server rejects the token
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
 }
 
-export const apiClient = new ApiClient();
+http.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const isAuthRoute = error.config?.url?.startsWith('/auth/');
+    if (error.response?.status === 401 && !isAuthRoute) {
+      onUnauthorized?.();
+    }
+    return Promise.reject(error);
+  }
+);
+
+/** Every endpoint returns `{ success, data }`; this unwraps `data`. */
+async function request<T>(config: AxiosRequestConfig): Promise<T> {
+  const response = await http.request<ApiResponse<T>>(config);
+  return response.data.data as T;
+}
+
+export const api = {
+  get: <T>(url: string, params?: Record<string, unknown>) => request<T>({ method: 'GET', url, params }),
+  post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    request<T>({ method: 'POST', url, data, ...config }),
+  put: <T>(url: string, data?: unknown) => request<T>({ method: 'PUT', url, data }),
+  delete: <T>(url: string, params?: Record<string, unknown>) =>
+    request<T>({ method: 'DELETE', url, params }),
+};
+
+/** Human readable message for alerts, using the API's error text when there is one. */
+export function getErrorMessage(error: unknown, fallback = 'Something went wrong'): string {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) return 'Could not reach the server. Check your connection.';
+    return (error.response.data as ApiResponse<unknown>)?.error ?? fallback;
+  }
+  return fallback;
+}
+
+/** Uploaded photos are stored as relative paths like `/uploads/abc.jpg`. */
+export function assetUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) return path;
+  return API_URL.replace(/\/api\/?$/, '') + path;
+}

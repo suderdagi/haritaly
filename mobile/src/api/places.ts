@@ -1,98 +1,43 @@
-import { apiClient } from './client';
-import { Place, Photo, ApiResponse } from '@/src/types';
+import { api } from './client';
+import { Photo, Place, PlaceInput } from '@/src/types';
+
+export interface PhotoUpload {
+  uri: string;
+  name: string;
+  type: string;
+}
 
 export const placesAPI = {
-  // Get user's saved places
-  async getMyPlaces() {
-    const response = await apiClient.get('/places');
-    let places = [];
-    if (Array.isArray(response.data)) {
-      places = response.data;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      places = response.data.data;
-    }
-    return places;
-  },
+  getMyPlaces: () => api.get<Place[]>('/places'),
 
-  // Get nearby places saved by friends
-  // radius is in meters
-  async getNearbyPlaces(latitude: number, longitude: number, radius: number = 5000) {
-    const response = await apiClient.get<ApiResponse<Place[]>>(
-      `/places/nearby?lat=${latitude}&lng=${longitude}&radius=${radius}`
-    );
-    return response.data.data || [];
-  },
+  /** Friends' places within `radius` meters, sorted by distance. */
+  getNearbyPlaces: (lat: number, lng: number, radius = 5000) =>
+    api.get<Place[]>('/places/nearby', { lat, lng, radius }),
 
-  // Get place details
-  async getPlaceDetails(placeId: number) {
-    const response = await apiClient.get<ApiResponse<Place>>(`/places/${placeId}`);
-    return response.data.data;
-  },
+  getPlaceDetails: (placeId: number) => api.get<Place>(`/places/${placeId}`),
 
-  // Search places
-  async searchPlaces(query: string) {
-    const response = await apiClient.get<ApiResponse<Place[]>>(`/places/search?q=${query}`);
-    return response.data.data || [];
-  },
+  searchPlaces: (q: string) => api.get<Place[]>('/places/search', { q }),
 
-  // Create new place
-  async createPlace(data: {
-    name: string;
-    latitude: number;
-    longitude: number;
-    description?: string;
-    category?: string;
-    address?: string;
-    favoriteFood?: string;
-    favoriteDrink?: string;
-    rating?: number;
-    notes?: string;
-  }) {
-    const response = await apiClient.post<ApiResponse<Place>>('/places', data);
-    return response.data.data;
-  },
+  createPlace: (data: PlaceInput) => api.post<Place>('/places', data),
 
-  // Update place
-  async updatePlace(
-    placeId: number,
-    data: {
-      name?: string;
-      description?: string;
-      category?: string;
-      address?: string;
-      rating?: number;
-      notes?: string;
-      favoriteFood?: string;
-      favoriteDrink?: string;
-    }
-  ) {
-    const response = await apiClient.put<ApiResponse<Place>>(`/places/${placeId}`, data);
-    return response.data.data;
-  },
+  updatePlace: (placeId: number, data: Partial<PlaceInput>) => api.put<Place>(`/places/${placeId}`, data),
 
-  // Delete place
-  async deletePlace(placeId: number) {
-    await apiClient.delete(`/places/${placeId}`);
-  },
+  deletePlace: (placeId: number) => api.delete(`/places/${placeId}`),
 
-  // Upload photos for a place
-  async uploadPhotos(placeId: number, photos: File[]) {
+  uploadPhotos(placeId: number, photos: PhotoUpload[]) {
     const formData = new FormData();
-    photos.forEach((photo, index) => {
-      formData.append('photos', photo);
-    });
+    // React Native's FormData accepts { uri, name, type } objects for files
+    photos.forEach((photo) => formData.append('photos', photo as unknown as Blob));
 
-    const response = await apiClient.post<ApiResponse<any>>(`/places/${placeId}/photos`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    return api.post<Photo[]>(`/places/${placeId}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
     });
-    return response.data.data;
   },
 
-  // Get photos for a place
-  async getPlacePhotos(placeId: number) {
-    const response = await apiClient.get<ApiResponse<Photo[]>>(`/places/${placeId}/photos`);
-    return response.data.data || [];
-  },
+  getPlacePhotos: (placeId: number) => api.get<Photo[]>(`/places/${placeId}/photos`),
+
+  getFavorites: () => api.get<Place[]>('/favorites'),
+  addFavorite: (placeId: number) => api.post(`/places/${placeId}/favorite`),
+  removeFavorite: (placeId: number) => api.delete(`/places/${placeId}/favorite`),
 };

@@ -1,22 +1,18 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useAuth } from '@/src/store/auth';
 
-export default function SplashScreen() {
-  const router = useRouter();
-  const { isLoading } = useAuth();
+export default function Index() {
+  const { isLoading, userToken } = useAuth();
 
-  useEffect(() => {
-    if (!isLoading) {
-      // Redirect to app map screen (authenticated or not)
-      router.replace('/(app)/map');
-    }
-  }, [isLoading]);
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#6366f1" />
+      </View>
+    );
+  }
 
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-      <ActivityIndicator size="large" color="#6366f1" />
-    </View>
-  );
+  return <Redirect href={userToken ? '/(app)/map' : '/(auth)/login'} />;
 }

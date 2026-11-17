@@ -1,8 +1,16 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '@/src/store/auth';
 
 export default function AppLayout() {
+  const { userToken, isLoading } = useAuth();
+
+  // Every screen in this group needs a logged-in user
+  if (!isLoading && !userToken) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -44,6 +52,17 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="favorites"
+        options={{
+          title: 'Favorites',
+          tabBarLabel: 'Favorites',
+          headerTitle: 'Favorites',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="heart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
@@ -54,6 +73,9 @@ export default function AppLayout() {
           ),
         }}
       />
+      {/* Pushed from other screens, not shown in the tab bar */}
+      <Tabs.Screen name="add-place" options={{ href: null, title: 'Add Place' }} />
+      <Tabs.Screen name="place-details" options={{ href: null, title: 'Place' }} />
     </Tabs>
   );
 }

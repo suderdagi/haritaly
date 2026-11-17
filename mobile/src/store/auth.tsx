@@ -1,15 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthResponse } from '@/src/types';
+import { setUnauthorizedHandler, TOKEN_KEY } from '@/src/api/client';
+import { User } from '@/src/types';
+
+const USER_KEY = 'userData';
 
 interface AuthContextType {
   user: User | null;
   userToken: string | null;
   isLoading: boolean;
-  login: (token: string, user: User) => Promise<void>;
-  logout: () => Promise<void>;
-  register: (token: string, user: User) => Promise<void>;
-  restoreToken: () => Promise<void>;
+  signIn: (token: string, user: User) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateUser: (user: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,75 +21,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore token on app launch
-  const restoreToken = async () => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const userData = await AsyncStorage.getItem('userData');
-
-      if (token && userData) {
-        setUserToken(token);
-        setUser(JSON.parse(userData));
-      }
-    } catch (e) {
-      console.error('Failed to restore token', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Login action
-  const login = async (token: string, userData: User) => {
-    try {
-      await AsyncStorage.setItem('userToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
-      setUserToken(token);
-      setUser(userData);
-    } catch (e) {
-      console.error('Failed to save auth data', e);
-      throw e;
-    }
-  };
-
-  // Register action
-  const register = async (token: string, userData: User) => {
-    await login(token, userData);
-  };
-
-  // Logout action
-  const logout = async () => {
-    try {
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
-      setUserToken(null);
-      setUser(null);
-    } catch (e) {
-      console.error('Failed to logout', e);
-      throw e;
-    }
-  };
-
-  useEffect(() => {
-    restoreToken();
+  const signIn = useCallback(async (token: string, userData: User) => {
+    await AsyncStorage.multiSet([
+      [TOKEN_KEY, token],
+      [USER_KEY, JSON.stringify(userData)],
+    ]);
+    setUserToken(token);
+    setUser(userData);
   }, []);
 
-  const value: AuthContextType = {
-    user,
-    userToken,
-    isLoading,
-    login,
-    logout,
-    register,
-    restoreToken,
-  };
+  const signOut = useCallback(async () => {
+    await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+    setUserToken(null);
+    setUser(null);
+  }, []);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const updateUser = useCallback(async (userData: User) => {
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+    setUser(userData);
+  }, []);
+
+  // Restore the session on app launch
+  useEffect(() => {
+    (async () => {
+      try {
+        const [[, token], [, userData]] = await AsyncStorage.multiGet([TOKEN_KEY, USER_KEY]);
+        if (token && userData) {
+          setUserToken(token);
+          setUser(JSON.parse(userData));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  // An expired token anywhere in the app sends the user back to login
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      signOut();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [signOut]);
+
+  return (
+    <AuthContext.Provider value={{ user, userToken, isLoading, signIn, signOut, updateUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-// Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
