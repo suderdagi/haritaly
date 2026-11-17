@@ -7,3 +7,5 @@ build
 ios
 android
 *.log
+*.tsbuildinfo
+.DS_Store
