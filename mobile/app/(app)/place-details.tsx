@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,137 +8,112 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Linking,
   Platform,
   Share,
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { placesAPI } from '@/src/api/places';
-import { usePlaces } from '@/src/hooks/usePlaces';
+import { assetUrl, getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
-import { Place, Photo } from '@/src/types';
+import { displayName, Place } from '@/src/types';
+
+const mapsLink = (place: Place) =>
+  `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
 
 export default function PlaceDetailsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const placeId = parseInt(params.placeId as string);
-
-  const [place, setPlace] = useState<Place | null>(null);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [photosLoading, setPhotosLoading] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
-
-  const { allPlaces } = usePlaces();
+  const params = useLocalSearchParams<{ placeId: string }>();
+  const placeId = Number(params.placeId);
   const { user: currentUser } = useAuth();
 
-  useEffect(() => {
-    if (placeId) {
-      loadPlaceDetails();
-    }
-  }, [placeId]);
+  const [place, setPlace] = useState<Place | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [savingFavorite, setSavingFavorite] = useState(false);
 
-  const loadPlaceDetails = async () => {
-    setLoading(true);
-    try {
-      const placeData = await placesAPI.getPlaceDetails(placeId);
-      if (placeData) {
-        setPlace(placeData);
-      } else {
-        // Fallback: try to find place in local combined places
-        const fallback = allPlaces.find((p) => Number(p.id) === Number(placeId));
-        if (fallback) setPlace(fallback);
-      }
-    } catch (err) {
-      console.warn('Non-fatal: failed to load place details from API', err);
-      // Fallback to local cache if available
-      const fallback = allPlaces.find((p) => Number(p.id) === Number(placeId));
-      if (fallback) {
-        setPlace(fallback);
-      } else {
-        // keep place null and show a friendly message below
-        console.warn('No local fallback available for place', placeId);
-      }
-    } finally {
-      // Attempt to load photos but do not let photo failures block the screen
-      try {
-        setPhotosLoading(true);
-        const photosData = await placesAPI.getPlacePhotos(placeId);
-        setPhotos(photosData);
-      } catch (photoErr) {
-        console.warn('Failed to load photos for place', placeId, photoErr);
-        setPhotos([]);
-      }
-      setLoading(false);
-      setPhotosLoading(false);
-    }
-  };
+  const isOwner = place !== null && place.userId === currentUser?.id;
+  const photos = place?.photos ?? [];
+
+  // Reload whenever the screen gets focus, e.g. after coming back from editing
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      placesAPI
+        .getPlaceDetails(placeId)
+        .then((data) => {
+          if (active) {
+            setPlace(data);
+            setError(null);
+          }
+        })
+        .catch((err) => active && setError(getErrorMessage(err, 'Could not load this place')))
+        .finally(() => active && setLoading(false));
+      return () => {
+        active = false;
+      };
+    }, [placeId])
+  );
 
   const handleEdit = () => {
-    // TODO: Navigate to edit place screen
-    Alert.alert('Coming Soon', 'Edit place functionality will be available soon!');
+    router.push({ pathname: '/add-place', params: { placeId } });
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Place',
-      'Are you sure you want to delete this place? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await placesAPI.deletePlace(placeId);
-              Alert.alert('Success', 'Place deleted successfully');
-              router.back();
-            } catch (error) {
-              console.error('Error deleting place:', error);
-              Alert.alert('Error', 'Failed to delete place');
-            }
-          },
+    Alert.alert('Delete place', 'Are you sure? This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await placesAPI.deletePlace(placeId);
+            router.back();
+          } catch (err) {
+            Alert.alert('Error', getErrorMessage(err, 'Failed to delete place'));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleOpenInMaps = () => {
     if (!place) return;
-    const lat = place.latitude;
-    const lng = place.longitude;
     const label = encodeURIComponent(place.name);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${lat},${lng}(${label})`,
-      android: `geo:0,0?q=${lat},${lng}(${label})`,
-      default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+    const nativeUrl = Platform.select({
+      ios: `maps:0,0?q=${label}@${place.latitude},${place.longitude}`,
+      android: `geo:0,0?q=${place.latitude},${place.longitude}(${label})`,
     });
-    try {
-      // Try to navigate using router; fallback handled by platform default
-      // @ts-ignore
-      router.push(url as any);
-    } catch (e) {
-      const web = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-      // @ts-ignore
-      router.push(web as any);
-    }
+
+    Linking.openURL(nativeUrl ?? mapsLink(place)).catch(() => Linking.openURL(mapsLink(place)));
   };
 
-  const handleToggleFavorite = () => {
-    setIsFavorite((v) => !v);
-    // TODO: persist favorite to backend when available
+  const handleToggleFavorite = async () => {
+    if (!place || savingFavorite) return;
+    const next = !place.isFavorite;
+
+    // Optimistic update, rolled back if the request fails
+    setPlace({ ...place, isFavorite: next });
+    setSavingFavorite(true);
+    try {
+      if (next) await placesAPI.addFavorite(place.id);
+      else await placesAPI.removeFavorite(place.id);
+    } catch (err) {
+      setPlace({ ...place, isFavorite: !next });
+      Alert.alert('Error', getErrorMessage(err, 'Could not update favorites'));
+    } finally {
+      setSavingFavorite(false);
+    }
   };
 
   const handleShare = async () => {
     if (!place) return;
-    try {
-      await Share.share({
-        title: place.name,
-        message: `${place.name} - ${place.address || ''}\nhttps://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`,
-      });
-    } catch (e) {
-      console.warn('Share failed', e);
-    }
+    await Share.share({
+      title: place.name,
+      message: [place.name, place.address, mapsLink(place)].filter(Boolean).join('\n'),
+    });
   };
 
   const renderStars = (rating?: number | string | null) => {
@@ -184,7 +159,7 @@ export default function PlaceDetailsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#6366f1" />
       </View>
     );
   }
@@ -192,7 +167,7 @@ export default function PlaceDetailsScreen() {
   if (!place) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Place not found</Text>
+        <Text style={styles.errorText}>{error ?? 'Place not found'}</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
@@ -205,16 +180,6 @@ export default function PlaceDetailsScreen() {
       <Stack.Screen
         options={{
           title: place.name,
-          headerRight: () => (
-            <View style={styles.headerButtons}>
-              <TouchableOpacity onPress={handleEdit} style={styles.headerButton}>
-                <MaterialCommunityIcons name="pencil" size={24} color="#007AFF" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
-                <MaterialCommunityIcons name="delete" size={24} color="#FF3B30" />
-              </TouchableOpacity>
-            </View>
-          ),
         }}
       />
 
@@ -229,7 +194,7 @@ export default function PlaceDetailsScreen() {
             {photos.map((photo) => (
               <Image
                 key={photo.id}
-                source={{ uri: photo.url }}
+                source={{ uri: assetUrl(photo.url) }}
                 style={styles.photo}
                 resizeMode="cover"
               />
@@ -250,23 +215,33 @@ export default function PlaceDetailsScreen() {
                   <Text style={styles.smallMuted}>{place.address ? place.address.split(',')[place.address.split(',').length-1].trim() : ''}</Text>
                 </View>
                 {/* Recommendation info */}
-                {place.user ? (
-                  <Text style={styles.recommendedText}>Recommended by {place.user.firstName ?? 'a friend'}</Text>
-                ) : place.userId && currentUser && place.userId !== currentUser.id ? (
-                  <Text style={styles.recommendedText}>Recommended by a friend</Text>
+                {!isOwner && place.user ? (
+                  <Text style={styles.recommendedText}>Recommended by {displayName(place.user)}</Text>
                 ) : null}
             </View>
 
             <View style={styles.actionsCol}>
-              <TouchableOpacity onPress={handleToggleFavorite} style={[styles.iconButton, isFavorite && styles.iconButtonActive]}>
-                <MaterialCommunityIcons name={isFavorite ? 'heart' : 'heart-outline'} size={20} color={isFavorite ? '#fff' : '#ec4899'} />
+              <TouchableOpacity
+                onPress={handleToggleFavorite}
+                style={[styles.iconButton, place.isFavorite && styles.iconButtonActive]}
+                accessibilityLabel={place.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <MaterialCommunityIcons
+                  name={place.isFavorite ? 'heart' : 'heart-outline'}
+                  size={20}
+                  color={place.isFavorite ? '#fff' : '#ec4899'}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
-                <MaterialCommunityIcons name="pencil" size={20} color="#6b7280" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.iconButtonDanger}>
-                <MaterialCommunityIcons name="delete" size={20} color="#fff" />
-              </TouchableOpacity>
+              {isOwner && (
+                <>
+                  <TouchableOpacity onPress={handleEdit} style={styles.iconButton} accessibilityLabel="Edit place">
+                    <MaterialCommunityIcons name="pencil" size={20} color="#6b7280" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleDelete} style={styles.iconButtonDanger} accessibilityLabel="Delete place">
+                    <MaterialCommunityIcons name="delete" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
 
@@ -479,13 +454,6 @@ const styles = StyleSheet.create({
   metadataValue: {
     fontSize: 14,
     color: '#333',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  headerButton: {
-    padding: 8,
   },
   /* New header & action styles */
   headerSection: {
