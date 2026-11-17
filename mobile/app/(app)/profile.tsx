@@ -13,36 +13,41 @@ import {
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/src/store/auth';
+import { usersAPI } from '@/src/api/users';
+import { getErrorMessage } from '@/src/api/client';
+import { displayName, initials } from '@/src/types';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, signOut, updateUser } = useAuth();
   const [isEditing, setIsEditing] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [formData, setFormData] = React.useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    bio: user?.bio || '',
+    firstName: user?.firstName ?? '',
+    lastName: user?.lastName ?? '',
+    bio: user?.bio ?? '',
   });
+  const [placeCount, setPlaceCount] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    usersAPI
+      .getProfile()
+      .then((profile) => setPlaceCount(profile._count?.places ?? 0))
+      .catch(() => setPlaceCount(null));
+  }, []);
 
   const handleLogout = async () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Log out',
+      'Are you sure you want to log out?',
       [
-        { text: 'Cancel', onPress: () => {} },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Log out',
+          style: 'destructive',
           onPress: async () => {
-            try {
-              setIsLoading(true);
-              await logout();
-              router.replace('/login');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to logout');
-            } finally {
-              setIsLoading(false);
-            }
+            await signOut();
+            router.replace('/(auth)/login');
           },
         },
       ]
@@ -52,11 +57,15 @@ export default function ProfileScreen() {
   const handleSaveProfile = async () => {
     try {
       setIsLoading(true);
-      // TODO: Call API to update user profile
+      const updated = await usersAPI.updateProfile({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        bio: formData.bio.trim(),
+      });
+      await updateUser({ ...user!, ...updated });
       setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile');
+      Alert.alert('Error', getErrorMessage(error, 'Failed to update profile'));
     } finally {
       setIsLoading(false);
     }
@@ -76,15 +85,15 @@ export default function ProfileScreen() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user.firstName[0]}
-              {user.lastName[0]}
-            </Text>
+            <Text style={styles.avatarText}>{initials(user)}</Text>
           </View>
-          <Text style={styles.userName}>
-            {user.firstName} {user.lastName}
-          </Text>
+          <Text style={styles.userName}>{displayName(user)}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
+          {placeCount !== null && (
+            <Text style={styles.userEmail}>
+              {placeCount} saved {placeCount === 1 ? 'place' : 'places'}
+            </Text>
+          )}
         </View>
 
         {/* Edit/Save Button */}
@@ -163,9 +172,9 @@ export default function ProfileScreen() {
                 onPress={() => {
                   setIsEditing(false);
                   setFormData({
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    bio: user.bio || '',
+                    firstName: user.firstName ?? '',
+                    lastName: user.lastName ?? '',
+                    bio: user.bio ?? '',
                   });
                 }}
               >
@@ -178,43 +187,13 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <MaterialCommunityIcons name="bell" size={20} color="#6366f1" />
-            <Text style={styles.settingText}>Notifications</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <MaterialCommunityIcons name="shield" size={20} color="#6366f1" />
-            <Text style={styles.settingText}>Privacy & Security</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <MaterialCommunityIcons name="information" size={20} color="#6366f1" />
-            <Text style={styles.settingText}>About</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" />
-          </TouchableOpacity>
-        </View>
-
         {/* Logout Button */}
         <TouchableOpacity
           style={[styles.button, styles.logoutButton]}
           onPress={handleLogout}
-          disabled={isLoading}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#ef4444" />
-          ) : (
-            <>
-              <MaterialCommunityIcons name="logout" size={20} color="#ef4444" />
-              <Text style={styles.logoutButtonText}>Logout</Text>
-            </>
-          )}
+          <MaterialCommunityIcons name="logout" size={20} color="#ef4444" />
+          <Text style={styles.logoutButtonText}>Log out</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -339,22 +318,6 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#6366f1',
-  },
-  settingItem: {
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  settingText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1f2937',
-    fontWeight: '500',
   },
   logoutButton: {
     marginHorizontal: 16,

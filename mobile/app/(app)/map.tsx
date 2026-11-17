@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,16 +8,17 @@ import {
   SafeAreaView,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocation } from '@/src/hooks/useLocation';
 import { usePlaces } from '@/src/hooks/usePlaces';
 import { MapPin } from '@/src/components/MapPin/MapPin';
 import { Place } from '@/src/types';
 
+// Istanbul, used until the user's location is known
 const INITIAL_REGION = {
-  latitude: 37.78825,
-  longitude: -122.4324,
+  latitude: 41.0082,
+  longitude: 28.9784,
   latitudeDelta: 0.0922,
   longitudeDelta: 0.0421,
 };
@@ -31,33 +31,24 @@ export default function MapScreen() {
     nearbyPlaces,
     allPlaces,
     isLoading: placesLoading,
+    refreshPlaces,
     fetchNearbyPlaces,
   } = usePlaces();
 
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [showNearbyOnly, setShowNearbyOnly] = useState(false);
 
-  // Fetch nearby places when location is available
-  useEffect(() => {
-    if (location) {
-      fetchNearbyPlaces(location.latitude, location.longitude, 5000);
-    }
-  }, [location, fetchNearbyPlaces]);
-
-  const handleMapPress = () => {
-    // When user taps on map, close any open callout
-    setSelectedPlace(null);
-  };
+  // Reload when the tab gets focus so new or edited places show up immediately
+  useFocusEffect(
+    useCallback(() => {
+      refreshPlaces();
+      if (location) {
+        fetchNearbyPlaces(location.latitude, location.longitude, 5000);
+      }
+    }, [location, refreshPlaces, fetchNearbyPlaces])
+  );
 
   const handleMarkerPress = (place: Place) => {
-    setSelectedPlace(place);
-    // Navigate to place details
-    setTimeout(() => {
-      router.push({
-        pathname: '/place-details',
-        params: { placeId: place.id },
-      });
-    }, 300);
+    router.push({ pathname: '/place-details', params: { placeId: place.id } });
   };
 
   const displayedPlaces = showNearbyOnly ? nearbyPlaces : allPlaces;
@@ -73,7 +64,6 @@ export default function MapScreen() {
         style={styles.map}
         initialRegion={mapRegion || INITIAL_REGION}
         onRegionChange={updateMapRegion}
-        onPress={handleMapPress}
         showsUserLocation
         showsMyLocationButton
       >
@@ -133,9 +123,9 @@ export default function MapScreen() {
       {/* Info bar */}
       <View style={styles.infoBar}>
         <View>
-          <Text style={styles.infoTitle}>Places Nearby</Text>
+          <Text style={styles.infoTitle}>{showNearbyOnly ? "Friends' places nearby" : 'All places'}</Text>
           <Text style={styles.infoCount}>
-            {displayedPlaces.length} {displayedPlaces.length === 1 ? 'place' : 'places'}
+            {uniqueDisplayedPlaces.length} {uniqueDisplayedPlaces.length === 1 ? 'place' : 'places'}
           </Text>
         </View>
         <View style={styles.legend}>

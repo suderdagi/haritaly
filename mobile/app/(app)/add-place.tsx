@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   Alert,
   Image,
   StyleSheet,
+  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { placesAPI } from '@/src/api/places';
+import { getErrorMessage } from '@/src/api/client';
 import { useLocation } from '@/src/hooks/useLocation';
 
 interface AddPlaceForm {
@@ -25,17 +27,10 @@ interface AddPlaceForm {
   notes: string;
 }
 
-const CATEGORIES = [
-  'Restaurant',
-  'Cafe',
-  'Bar',
-  'Park',
-  'Museum',
-  'Shop',
-  'Hotel',
-  'Attraction',
-  'Other',
-];
+// Must match PLACE_CATEGORIES in the backend validators
+const CATEGORIES = ['Restaurant', 'Cafe', 'Bar', 'Park', 'Museum', 'Shop', 'Hotel', 'Attraction', 'Other'];
+
+const MAX_PHOTOS = 5;
 
 export default function AddPlaceScreen() {
   const router = useRouter();
@@ -55,13 +50,31 @@ export default function AddPlaceScreen() {
   const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Pre-fill location if passed from map
-  React.useEffect(() => {
-    if (params.latitude && params.longitude) {
-      // Could reverse geocode here to get address
-      console.log('Location from map:', params.latitude, params.longitude);
-    }
-  }, [params]);
+  // The same screen is used for editing when a placeId is passed
+  const editingId = params.placeId ? Number(params.placeId) : null;
+  const [loadingPlace, setLoadingPlace] = useState(editingId !== null);
+
+  useEffect(() => {
+    if (!editingId) return;
+    placesAPI
+      .getPlaceDetails(editingId)
+      .then((place) =>
+        setForm({
+          name: place.name,
+          category: place.category ?? '',
+          address: place.address ?? '',
+          rating: place.rating != null ? String(place.rating) : '',
+          favoriteFood: place.favoriteFood ?? '',
+          favoriteDrink: place.favoriteDrink ?? '',
+          notes: place.notes ?? '',
+        })
+      )
+      .catch((error) => {
+        Alert.alert('Error', getErrorMessage(error, 'Could not load this place'));
+        router.back();
+      })
+      .finally(() => setLoadingPlace(false));
+  }, [editingId]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -74,11 +87,11 @@ export default function AddPlaceScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
       quality: 0.8,
-      selectionLimit: 5, // Max 5 photos
+      selectionLimit: MAX_PHOTOS,
     });
 
     if (!result.canceled) {
-      setPhotos(prev => [...prev, ...result.assets]);
+      setPhotos(prev => [...prev, ...result.assets].slice(0, MAX_PHOTOS));
     }
   };
 
@@ -94,7 +107,7 @@ export default function AddPlaceScreen() {
     });
 
     if (!result.canceled) {
-      setPhotos(prev => [...prev, ...result.assets]);
+      setPhotos(prev => [...prev, ...result.assets].slice(0, MAX_PHOTOS));
     }
   };
 
@@ -104,55 +117,55 @@ export default function AddPlaceScreen() {
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
-      Alert.alert('Error', 'Please enter a place name');
+      Alert.alert('Missing name', 'Please enter a place name');
       return;
     }
 
-    if (!location) {
-      Alert.alert('Error', 'Location not available. Please enable location services.');
+    const rating = form.rating ? Number(form.rating.replace(',', '.')) : undefined;
+    if (rating !== undefined && (!Number.isFinite(rating) || rating < 0 || rating > 5)) {
+      Alert.alert('Invalid rating', 'Rating must be a number between 0 and 5');
       return;
     }
+
+    if (!editingId && !location) {
+      Alert.alert('Location unavailable', 'Please enable location services to save a place.');
+      return;
+    }
+
+    const details = {
+      name: form.name.trim(),
+      category: form.category || undefined,
+      address: form.address.trim() || undefined,
+      rating,
+      favoriteFood: form.favoriteFood.trim() || undefined,
+      favoriteDrink: form.favoriteDrink.trim() || undefined,
+      notes: form.notes.trim() || undefined,
+    };
 
     setLoading(true);
     try {
-      // Create the place
-      const placeData = {
-        name: form.name.trim(),
-        category: form.category || undefined,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        address: form.address.trim() || undefined,
-        rating: form.rating ? parseFloat(form.rating) : undefined,
-        favoriteFood: form.favoriteFood.trim() || undefined,
-        favoriteDrink: form.favoriteDrink.trim() || undefined,
-        notes: form.notes.trim() || undefined,
-      };
+      const place = editingId
+        ? await placesAPI.updatePlace(editingId, details)
+        : await placesAPI.createPlace({
+            ...details,
+            latitude: location!.latitude,
+            longitude: location!.longitude,
+          });
 
-      const newPlace = await placesAPI.createPlace(placeData);
-      if (!newPlace) {
-        throw new Error('Place creation returned no data');
-      }
-
-      // Upload photos if any
       if (photos.length > 0) {
-        const photoFiles = photos.map(photo => ({
-          uri: photo.uri,
-          type: 'image/jpeg',
-          name: `photo-${Date.now()}.jpg`,
-        })) as any;
-
-        await placesAPI.uploadPhotos(newPlace.id, photoFiles);
+        await placesAPI.uploadPhotos(
+          place.id,
+          photos.map((photo, index) => ({
+            uri: photo.uri,
+            type: photo.mimeType ?? 'image/jpeg',
+            name: photo.fileName ?? `photo-${index}.jpg`,
+          }))
+        );
       }
 
-      Alert.alert('Success', 'Place added successfully!', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      router.back();
     } catch (error) {
-      console.error('Error adding place:', error);
-      Alert.alert('Error', 'Failed to add place. Please try again.');
+      Alert.alert('Could not save', getErrorMessage(error, 'Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -162,11 +175,19 @@ export default function AddPlaceScreen() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  if (loadingPlace) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#6366f1" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Add Place',
+          title: editingId ? 'Edit Place' : 'Add Place',
           headerRight: () => (
             <TouchableOpacity
               onPress={handleSubmit}
@@ -193,12 +214,22 @@ export default function AddPlaceScreen() {
             onChangeText={(value) => updateForm('name', value)}
           />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Category (Restaurant, Cafe, Park, etc.)"
-            value={form.category}
-            onChangeText={(value) => updateForm('category', value)}
-          />
+          <View style={styles.categories}>
+            {CATEGORIES.map((category) => {
+              const selected = form.category === category;
+              return (
+                <TouchableOpacity
+                  key={category}
+                  style={[styles.categoryChip, selected && styles.categoryChipSelected]}
+                  onPress={() => updateForm('category', selected ? '' : category)}
+                >
+                  <Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>
+                    {category}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <TextInput
             style={styles.input}
@@ -283,7 +314,7 @@ export default function AddPlaceScreen() {
         </View>
 
         {/* Location Info */}
-        {location && (
+        {!editingId && location && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Location</Text>
             <Text style={styles.locationText}>
@@ -330,6 +361,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 16,
+  },
+  categories: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+  },
+  categoryChipSelected: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  categoryText: {
+    fontSize: 13,
+    color: '#4b5563',
+  },
+  categoryTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
   },
   input: {
     borderWidth: 1,
