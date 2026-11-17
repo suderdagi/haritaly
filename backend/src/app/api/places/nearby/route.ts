@@ -1,112 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/src/lib/db';
-import { verifyToken } from '@/src/lib/jwt';
-import { ValidationError, handleError } from '@/src/lib/errors';
+import { NearbyQuerySchema } from '@/src/lib/validators';
 import { serializePlace } from '@/src/lib/serializers';
+import { getFriendIds } from '@/src/lib/friends';
+import { placeInclude } from '@/src/lib/places';
+import { boundingBox, distanceInMeters } from '@/src/lib/geo';
+import { fail, ok, requireAuth } from '@/src/lib/http';
 
-// Get nearby places from friends
+// GET /api/places/nearby?lat=..&lng=..&radius=5000&category=Cafe
+// Places saved by the user's friends within `radius` meters, closest first.
 export async function GET(req: NextRequest) {
   try {
-    console.log('[GET /api/places/nearby] Request received');
-    
-    let payload = null;
-    const authHeader = req.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      payload = verifyToken(token);
-      console.log('[GET /api/places/nearby] Auth token verified for user:', payload?.id);
-    } else {
-      console.log('[GET /api/places/nearby] No auth token, returning all places');
+    const { id: userId } = requireAuth(req);
+    const query = NearbyQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
+    const center = { latitude: query.lat, longitude: query.lng };
+
+    const friendIds = await getFriendIds(userId);
+    if (friendIds.length === 0) {
+      return ok([]);
     }
 
-    const { searchParams } = new URL(req.url);
-    const lat = parseFloat(searchParams.get('lat') || '');
-    const lng = parseFloat(searchParams.get('lng') || '');
-    const radius = parseFloat(searchParams.get('radius') || '1000'); // meters
-
-    console.log('[GET /api/places/nearby] Query params:', { lat, lng, radius });
-
-    if (isNaN(lat) || isNaN(lng)) {
-      throw new ValidationError('Latitude and longitude are required');
-    }
-
-    let places: Array<{ latitude: unknown; longitude: unknown }>;
-    if (payload) {
-      console.log('[GET /api/places/nearby] Fetching accepted friendships...');
-      // Get accepted friends
-      const friendships = (await db.friendship.findMany({
-        where: {
-          OR: [
-            { senderId: payload.id, status: 'ACCEPTED' },
-            { receiverId: payload.id, status: 'ACCEPTED' },
-          ],
-        },
-        include: {
-          sender: { select: { id: true } },
-          receiver: { select: { id: true } },
-        },
-      })) as Array<{ senderId: number; receiverId: number }>;
-
-      const friendIds = friendships.map((f) =>
-        f.senderId === payload.id ? f.receiverId : f.senderId
-      );
-
-      console.log('[GET /api/places/nearby] Found friends:', friendIds);
-
-      // Get all places from friends
-      places = await db.place.findMany({
-        where: {
-          userId: { in: friendIds },
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-              profilePicture: true,
-            },
-          },
-          photos: true,
-        },
-      });
-    } else {
-      // TODO: Re-enable auth for GET /api/places/nearby once login flow is implemented.
-      console.log('[GET /api/places/nearby] Fetching all places (no auth)');
-      places = await db.place.findMany({
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-              profilePicture: true,
-            },
-          },
-          photos: true,
-        },
-      });
-    }
-
-    console.log('[GET /api/places/nearby] Found total places:', places.length);
-
-    // Filter by distance (simple calculation, for production use Haversine formula)
-    const radiusKm = radius / 1000;
-    const filtered = places.filter((place: any) => {
-      const latDiff = Math.abs(parseFloat(place.latitude.toString()) - lat);
-      const lngDiff = Math.abs(parseFloat(place.longitude.toString()) - lng);
-      const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111; // rough km conversion
-      return distance <= radiusKm;
+    // Cheap rectangle filter in the database, exact distance check in code
+    const box = boundingBox(center, query.radius);
+    const candidates = await db.place.findMany({
+      where: {
+        userId: { in: friendIds },
+        latitude: { gte: box.minLat, lte: box.maxLat },
+        longitude: { gte: box.minLng, lte: box.maxLng },
+        ...(query.category ? { category: query.category } : {}),
+      },
+      include: placeInclude,
     });
 
-    console.log('[GET /api/places/nearby] Filtered places by distance:', filtered.length);
+    const places = candidates
+      .map((place) => {
+        const serialized = serializePlace(place);
+        return { ...serialized, distance: Math.round(distanceInMeters(center, serialized)) };
+      })
+      .filter((place) => place.distance <= query.radius)
+      .sort((a, b) => a.distance - b.distance);
 
-    return NextResponse.json({ success: true, data: filtered.map(serializePlace) });
+    return ok(places);
   } catch (error) {
-    console.error('[GET /api/places/nearby] Error:', error);
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ success: false, data: [], error: message }, { status: statusCode });
+    return fail(error);
   }
 }
