@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -37,6 +37,25 @@ export default function MapScreen() {
 
   const [showNearbyOnly, setShowNearbyOnly] = useState(false);
 
+  // `initialRegion` is only read when the map mounts, so the camera has to be moved
+  // by hand once the first location fix arrives
+  const mapRef = useRef<MapView>(null);
+  const centeredOnUser = useRef(false);
+  useEffect(() => {
+    if (location && !centeredOnUser.current) {
+      centeredOnUser.current = true;
+      mapRef.current?.animateToRegion(
+        {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          latitudeDelta: INITIAL_REGION.latitudeDelta,
+          longitudeDelta: INITIAL_REGION.longitudeDelta,
+        },
+        600
+      );
+    }
+  }, [location]);
+
   // Reload when the tab gets focus so new or edited places show up immediately
   useFocusEffect(
     useCallback(() => {
@@ -60,10 +79,11 @@ export default function MapScreen() {
     <SafeAreaView style={styles.container}>
       {/* Map */}
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={mapRegion || INITIAL_REGION}
-        onRegionChange={updateMapRegion}
+        onRegionChangeComplete={updateMapRegion}
         showsUserLocation
         showsMyLocationButton
       >

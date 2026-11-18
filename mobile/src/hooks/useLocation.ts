@@ -10,9 +10,10 @@ interface LocationCoords {
 
 export const useLocation = () => {
   const [location, setLocation] = useState<LocationCoords | null>(null);
+  // Istanbul until the first location fix arrives
   const [mapRegion, setMapRegion] = useState<MapRegion>({
-    latitude: 37.78825,
-    longitude: -122.4324,
+    latitude: 41.0082,
+    longitude: 28.9784,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
