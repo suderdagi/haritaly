@@ -43,7 +43,8 @@ async function request<T>(config: AxiosRequestConfig): Promise<T> {
 }
 
 export const api = {
-  get: <T>(url: string, params?: Record<string, unknown>) => request<T>({ method: 'GET', url, params }),
+  get: <T>(url: string, params?: Record<string, unknown>, config?: AxiosRequestConfig) =>
+    request<T>({ method: 'GET', url, params, ...config }),
   post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
     request<T>({ method: 'POST', url, data, ...config }),
   put: <T>(url: string, data?: unknown) => request<T>({ method: 'PUT', url, data }),

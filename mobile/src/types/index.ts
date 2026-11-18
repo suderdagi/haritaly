@@ -38,6 +38,19 @@ export interface Place {
   isFavorite?: boolean;
 }
 
+export type PlaceSummary =
+  | { status: 'NOT_ENOUGH_DATA'; mentionCount: number }
+  | {
+      status: 'OK';
+      /** How many saved entries (yours and your friends') the summary is based on */
+      mentionCount: number;
+      cached: boolean;
+      generatedAt: string;
+      summary: string;
+      highlights: string[];
+      mustTry: string[];
+    };
+
 export type PlaceInput = {
   name: string;
   latitude: number;

@@ -102,3 +102,14 @@ model Favorite {
   @@index([placeId])
   @@map("Favorite")
 }
+
+// Cached LLM output. The key is a hash of everything sent to the model,
+// so the same input never calls the API twice and any new or edited note produces a new key.
+model AiSummary {
+  sourceHash String   @id
+  content    Json
+  model      String
+  createdAt  DateTime @default(now())
+
+  @@map("AiSummary")
+}

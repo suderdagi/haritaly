@@ -1,5 +1,5 @@
 import { api } from './client';
-import { Photo, Place, PlaceInput } from '@/src/types';
+import { Photo, Place, PlaceInput, PlaceSummary } from '@/src/types';
 
 export interface PhotoUpload {
   uri: string;
@@ -15,6 +15,10 @@ export const placesAPI = {
     api.get<Place[]>('/places/nearby', { lat, lng, radius }),
 
   getPlaceDetails: (placeId: number) => api.get<Place>(`/places/${placeId}`),
+
+  /** AI summary of what you and your friends saved about this place. The model can be slow. */
+  getPlaceSummary: (placeId: number) =>
+    api.get<PlaceSummary>(`/places/${placeId}/summary`, undefined, { timeout: 30000 }),
 
   searchPlaces: (q: string) => api.get<Place[]>('/places/search', { q }),
 

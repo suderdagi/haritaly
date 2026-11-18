@@ -18,6 +18,7 @@ import { placesAPI } from '@/src/api/places';
 import { assetUrl, getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
 import { displayName, Place } from '@/src/types';
+import { AISummaryCard } from '@/src/components/AISummaryCard/AISummaryCard';
 
 const mapsLink = (place: Place) =>
   `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
@@ -257,6 +258,9 @@ export default function PlaceDetailsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* AI summary of the user's and friends' entries for this place */}
+        <AISummaryCard placeId={place.id} />
 
         {/* Favorites */}
         <View style={styles.section}>
