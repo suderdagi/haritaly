@@ -3,6 +3,7 @@ import { db } from '@/src/lib/db';
 import { UpdatePlaceSchema } from '@/src/lib/validators';
 import { serializePlace } from '@/src/lib/serializers';
 import { getOwnedPlace, getVisiblePlace, placeInclude } from '@/src/lib/places';
+import { deletePhotoFiles } from '@/src/lib/storage';
 import { fail, ok, parseId, requireAuth } from '@/src/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
@@ -48,7 +49,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const placeId = parseId((await params).id, 'place ID');
     await getOwnedPlace(userId, placeId);
 
+    const photos = await db.photo.findMany({ where: { placeId }, select: { url: true } });
     await db.place.delete({ where: { id: placeId } });
+    // Photo rows are removed by the cascade, the files themselves are not
+    await deletePhotoFiles(photos.map((p) => p.url));
+
     return ok({ id: placeId });
   } catch (error) {
     return fail(error);
