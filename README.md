@@ -148,12 +148,12 @@ The backend is a standard Next.js app, deployed from the `backend/` folder:
 
 1. Import the repository on Vercel and set **Root Directory** to `backend`.
 2. Add `JWT_SECRET` (a long random string) and `SUPPORT_EMAIL` in **Settings → Environment Variables**. Optionally add `OPENAI_API_KEY`.
-3. In **Storage**, create a **Neon** Postgres database (region Frankfurt) and a **Blob** store with **Public** access, and connect both to the project. They add `DATABASE_URL`, `DATABASE_URL_UNPOOLED` and `BLOB_READ_WRITE_TOKEN`.
+3. In **Storage**, create a **Neon** Postgres database (region Frankfurt) and a **Blob** store with **Public** access, and connect both to the project. They add `DATABASE_URL`, `DATABASE_URL_UNPOOLED` and `BLOB_STORE_ID` (the Blob SDK signs in with the deployment's OIDC token; older stores add `BLOB_READ_WRITE_TOKEN` instead).
 4. Redeploy. Check `https://<project>.vercel.app/api/health`.
 
 [`vercel.json`](backend/vercel.json) runs [`scripts/vercel-build.sh`](backend/scripts/vercel-build.sh), which applies pending migrations with `prisma migrate deploy` before `next build`, but only for production deployments, so a preview deployment of an unmerged branch never changes the real database. Functions run in `fra1` (Frankfurt), next to the database.
 
-Photos are stored in Vercel Blob because a serverless file system is read-only and reset on every deployment. Without `BLOB_READ_WRITE_TOKEN` (local development) they go to `public/uploads`. The app resizes photos to at most 1600 px and uploads them one per request, which keeps each request below Vercel's 4.5 MB body limit.
+Photos are stored in Vercel Blob because a serverless file system is read-only and reset on every deployment. Without a connected store (local development) they go to `public/uploads`. The app resizes photos to at most 1600 px and uploads them one per request, which keeps each request below Vercel's 4.5 MB body limit.
 
 Demo data for App Review and screenshots is created through the public API, so it needs no database access:
 

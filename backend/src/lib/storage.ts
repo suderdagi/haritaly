@@ -17,11 +17,13 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 /**
  * Where photos are stored:
- * - Vercel Blob when BLOB_READ_WRITE_TOKEN is set (production). Vercel's file system is
- *   read-only and reset on every deployment, so files can't be kept on disk there.
+ * - Vercel Blob when a Blob store is connected to the project (production). Vercel's file system
+ *   is read-only and reset on every deployment, so files can't be kept on disk there.
+ *   Newer stores are connected with BLOB_STORE_ID and the SDK signs in with the deployment's
+ *   OIDC token; older ones get a BLOB_READ_WRITE_TOKEN. The SDK handles both.
  * - public/uploads on local disk otherwise (development and tests).
  */
-const useBlobStorage = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const useBlobStorage = () => Boolean(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
 
 export function validatePhoto(file: File) {
   if (!EXTENSIONS[file.type]) {
