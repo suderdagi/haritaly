@@ -59,3 +59,9 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      # Fails when a package drifts from the version Expo SDK expects (a common cause of native build errors)
+      - run: npx expo install --check
+      # Bundles the JavaScript the way EAS Build does, catching broken imports before a 20-minute cloud build
+      - run: npx expo export --platform ios --output-dir /tmp/expo-export
+        env:
+          EXPO_PUBLIC_API_URL: https://example.com/api
