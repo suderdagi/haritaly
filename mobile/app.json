@@ -5,27 +5,68 @@
     "scheme": "haritaly",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "primaryColor": "#6366f1",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.suderdagi.haritaly"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.suderdagi.haritaly",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": ["E174.1"]
+          }
+        ]
+      }
     },
     "android": {
-      "package": "com.suderdagi.haritaly"
+      "package": "com.suderdagi.haritaly",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png"
+      }
     },
     "plugins": [
       "expo-router",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Haritaly uses your location to show places your friends saved nearby."
+          "locationWhenInUsePermission": "Haritaly uses your location to center the map, to save a place where you are, and to show places your friends saved nearby.",
+          "locationAlwaysAndWhenInUsePermission": "Haritaly only uses your location while you use the app: to center the map, save a place where you are, and show places your friends saved nearby.",
+          "locationAlwaysPermission": "Haritaly only uses your location while you use the app: to center the map, save a place where you are, and show places your friends saved nearby."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Haritaly needs access to your photos so you can add them to places.",
-          "cameraPermission": "Haritaly needs camera access so you can take photos of places."
+          "photosPermission": "Haritaly lets you pick photos to add to the places you save.",
+          "cameraPermission": "Haritaly uses the camera so you can take photos of the places you save.",
+          "microphonePermission": false
         }
       ]
     ]

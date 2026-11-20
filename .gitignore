@@ -9,3 +9,11 @@ android
 *.log
 *.tsbuildinfo
 .DS_Store
+
+# Signing credentials and API keys must never be committed
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+credentials.json

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="pinFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#1e1b4b" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" opacity="0.16">
+    <path d="M -60 760 C 180 690 330 820 560 740 S 900 600 1090 650" stroke-width="44"/>
+    <path d="M 170 -60 C 250 190 120 380 250 560 S 300 900 220 1090" stroke-width="30"/>
+    <path d="M 760 -60 C 700 160 860 300 820 470" stroke-width="26"/>
+    <path d="M -60 260 C 120 300 260 230 420 280" stroke-width="22"/>
+  </g>
+  <g transform="translate(0 -26)"><ellipse cx="512" cy="884" rx="120" ry="22" fill="#1e1b4b" opacity="0.22"/>
+  <g fill="#ffffff" filter="url(#shadow)"><path d="M512 860 C 432 748 282 612 282 440 A 230 230 0 1 1 742 440 C 742 612 592 748 512 860 Z"/></g>
+  <g fill="url(#pinFill)"><path d="M512 548 C 452 506 382 458 382 392 C 382 348 416 316 458 316 C 482 316 501 328 512 348 C 523 328 542 316 566 316 C 608 316 642 348 642 392 C 642 458 572 506 512 548 Z"/></g>
+</g></svg>
