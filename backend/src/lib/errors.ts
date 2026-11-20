@@ -51,7 +51,7 @@ export function handleError(error: unknown): { statusCode: number; message: stri
   }
 
   if (error instanceof ZodError) {
-    return { statusCode: 400, message: error.errors[0]?.message ?? 'Invalid input' };
+    return { statusCode: 400, message: error.issues[0]?.message ?? 'Invalid input' };
   }
 
   if (error instanceof SyntaxError) {
