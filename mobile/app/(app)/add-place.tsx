@@ -9,6 +9,7 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
+  Linking,
   Platform,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -16,6 +17,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { placesAPI } from '@/src/api/places';
 import { getErrorMessage } from '@/src/api/client';
 import { useLocation } from '@/src/hooks/useLocation';
+import { preparePhoto } from '@/src/utils/preparePhoto';
+import { Place } from '@/src/types';
 
 interface AddPlaceForm {
   name: string;
@@ -76,18 +79,21 @@ export default function AddPlaceScreen() {
       .finally(() => setLoadingPlace(false));
   }, [editingId]);
 
+  const hasRoomForPhotos = () => {
+    if (photos.length < MAX_PHOTOS) return true;
+    Alert.alert('Photo limit', `You can add up to ${MAX_PHOTOS} photos at a time.`);
+    return false;
+  };
+
+  // The system photo picker only shares the photos the user selects, so it needs no library permission
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant permission to access your photos');
-      return;
-    }
+    if (!hasRoomForPhotos()) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
-      selectionLimit: MAX_PHOTOS,
+      selectionLimit: MAX_PHOTOS - photos.length,
     });
 
     if (!result.canceled) {
@@ -96,9 +102,14 @@ export default function AddPlaceScreen() {
   };
 
   const takePhoto = async () => {
+    if (!hasRoomForPhotos()) return;
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant permission to access your camera');
+      Alert.alert('Camera access needed', 'Allow camera access in Settings to take photos of places.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 
@@ -128,7 +139,14 @@ export default function AddPlaceScreen() {
     }
 
     if (!editingId && !location) {
-      Alert.alert('Location unavailable', 'Please enable location services to save a place.');
+      Alert.alert(
+        'Location unavailable',
+        'Haritaly saves a place at your current location. Allow location access in Settings to save places.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
       return;
     }
 
@@ -143,32 +161,36 @@ export default function AddPlaceScreen() {
     };
 
     setLoading(true);
+    let place: Place;
     try {
-      const place = editingId
+      place = editingId
         ? await placesAPI.updatePlace(editingId, details)
         : await placesAPI.createPlace({
             ...details,
             latitude: location!.latitude,
             longitude: location!.longitude,
           });
-
-      if (photos.length > 0) {
-        await placesAPI.uploadPhotos(
-          place.id,
-          photos.map((photo, index) => ({
-            uri: photo.uri,
-            type: photo.mimeType ?? 'image/jpeg',
-            name: photo.fileName ?? `photo-${index}.jpg`,
-          }))
-        );
-      }
-
-      router.back();
     } catch (error) {
       Alert.alert('Could not save', getErrorMessage(error, 'Please try again.'));
-    } finally {
       setLoading(false);
+      return;
     }
+
+    // The place is saved at this point. Photos go up one per request so each request stays small;
+    // if one fails, the user is told instead of being asked to save (and duplicate) the place again.
+    try {
+      for (const [index, photo] of photos.entries()) {
+        await placesAPI.uploadPhotos(place.id, [await preparePhoto(photo, index)]);
+      }
+    } catch (error) {
+      Alert.alert(
+        'Place saved',
+        `Some photos could not be uploaded (${getErrorMessage(error, 'unknown error')}). You can add them again by editing the place.`
+      );
+    }
+
+    setLoading(false);
+    router.back();
   };
 
   const updateForm = (field: keyof AddPlaceForm, value: string) => {
