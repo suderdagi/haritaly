@@ -2,6 +2,7 @@
   "expo": {
     "name": "Haritaly",
     "slug": "haritaly",
+    "owner": "suderdagi",
     "scheme": "haritaly",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -69,6 +70,11 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "eff177a2-6107-489e-b010-a17376a599ce"
+      }
+    }
   }
 }
