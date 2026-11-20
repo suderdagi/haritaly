@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Place } from '@/src/types';
 import { placesAPI } from '@/src/api/places';
 
@@ -21,12 +21,19 @@ export const usePlaces = () => {
     }
   }, []);
 
+  const latestNearbyRequest = useRef(0);
+
   /** Friends' places within `radius` meters of the given point. */
   const fetchNearbyPlaces = useCallback(async (latitude: number, longitude: number, radius = 5000) => {
+    const requestId = ++latestNearbyRequest.current;
     try {
-      setNearbyPlaces(await placesAPI.getNearbyPlaces(latitude, longitude, radius));
+      const places = await placesAPI.getNearbyPlaces(latitude, longitude, radius);
+      // When the map moves quickly, an older and slower response must not replace the newer one
+      if (requestId === latestNearbyRequest.current) {
+        setNearbyPlaces(places);
+      }
     } catch {
-      setNearbyPlaces([]);
+      // Keep showing the last places that loaded
     }
   }, []);
 

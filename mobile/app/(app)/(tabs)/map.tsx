@@ -5,15 +5,14 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocation } from '@/src/hooks/useLocation';
 import { usePlaces } from '@/src/hooks/usePlaces';
 import { MapPin } from '@/src/components/MapPin/MapPin';
-import { Place } from '@/src/types';
+import { MapRegion, Place } from '@/src/types';
 
 // Istanbul, used until the user's location is known
 const INITIAL_REGION = {
@@ -22,6 +21,20 @@ const INITIAL_REGION = {
   latitudeDelta: 0.0922,
   longitudeDelta: 0.0421,
 };
+
+// The nearby endpoint accepts radii between 100 m and 50 km
+const MIN_RADIUS_M = 100;
+const MAX_RADIUS_M = 50_000;
+const METERS_PER_DEGREE = 111_320;
+const REGION_DEBOUNCE_MS = 400;
+
+/** Distance from the center of the visible map to its corner, so the search circle covers the screen. */
+function regionRadius(region: MapRegion): number {
+  const halfHeight = (region.latitudeDelta / 2) * METERS_PER_DEGREE;
+  const halfWidth =
+    (region.longitudeDelta / 2) * METERS_PER_DEGREE * Math.cos((region.latitude * Math.PI) / 180);
+  return Math.round(Math.min(Math.max(Math.hypot(halfHeight, halfWidth), MIN_RADIUS_M), MAX_RADIUS_M));
+}
 
 export default function MapScreen() {
   const router = useRouter();
@@ -56,15 +69,37 @@ export default function MapScreen() {
     }
   }, [location]);
 
+  // Friends' places are loaded for the area on screen, so panning the map (to another
+  // neighborhood or city) shows the places saved there
+  const regionRef = useRef<MapRegion>(mapRegion);
+  regionRef.current = mapRegion;
+  const lastQuery = useRef('');
+
+  const loadFriendsInView = useCallback(
+    (force = false) => {
+      const region = regionRef.current;
+      const radius = regionRadius(region);
+      const query = `${region.latitude.toFixed(4)},${region.longitude.toFixed(4)},${radius}`;
+      if (!force && query === lastQuery.current) return;
+      lastQuery.current = query;
+      fetchNearbyPlaces(region.latitude, region.longitude, radius);
+    },
+    [fetchNearbyPlaces]
+  );
+
   // Reload when the tab gets focus so new or edited places show up immediately
   useFocusEffect(
     useCallback(() => {
       refreshPlaces();
-      if (location) {
-        fetchNearbyPlaces(location.latitude, location.longitude, 5000);
-      }
-    }, [location, refreshPlaces, fetchNearbyPlaces])
+      loadFriendsInView(true);
+    }, [refreshPlaces, loadFriendsInView])
   );
+
+  // Wait until the map stops moving before asking the server
+  useEffect(() => {
+    const timer = setTimeout(() => loadFriendsInView(), REGION_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [mapRegion, loadFriendsInView]);
 
   const handleMarkerPress = (place: Place) => {
     router.push({ pathname: '/place-details', params: { placeId: place.id } });
@@ -76,11 +111,10 @@ export default function MapScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Map */}
+    <View style={styles.container}>
+      {/* Map: Apple Maps on iOS, Google Maps on Android (each platform's default provider) */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={mapRegion || INITIAL_REGION}
         onRegionChangeComplete={updateMapRegion}
@@ -143,7 +177,7 @@ export default function MapScreen() {
       {/* Info bar */}
       <View style={styles.infoBar}>
         <View>
-          <Text style={styles.infoTitle}>{showNearbyOnly ? "Friends' places nearby" : 'All places'}</Text>
+          <Text style={styles.infoTitle}>{showNearbyOnly ? "Friends' places in this area" : 'All places'}</Text>
           <Text style={styles.infoCount}>
             {uniqueDisplayedPlaces.length} {uniqueDisplayedPlaces.length === 1 ? 'place' : 'places'}
           </Text>
@@ -167,7 +201,7 @@ export default function MapScreen() {
       >
         <MaterialCommunityIcons name="plus" size={28} color="#fff" />
       </TouchableOpacity>
-    </SafeAreaView>
+    </View>
   );
 }
 
