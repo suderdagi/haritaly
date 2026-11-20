@@ -1,6 +1,7 @@
 import { FriendshipStatus } from '@prisma/client';
 import { prisma } from './db';
 import { publicUserSelect } from './selects';
+import { isBlockedEitherWay } from './blocks';
 import { ConflictError, NotFoundError, AuthorizationError, ValidationError } from './errors';
 
 const betweenUsers = (a: number, b: number) => ({
@@ -66,6 +67,11 @@ export async function sendFriendRequest(senderId: number, receiverId: number) {
   const receiver = await prisma.user.findUnique({ where: { id: receiverId }, select: { id: true } });
   if (!receiver) {
     throw new NotFoundError('User not found');
+  }
+
+  // Same message whichever side blocked, so nobody can find out they were blocked
+  if (await isBlockedEitherWay(senderId, receiverId)) {
+    throw new AuthorizationError('You cannot send a friend request to this user');
   }
 
   const existing = await prisma.friendship.findFirst({ where: betweenUsers(senderId, receiverId) });

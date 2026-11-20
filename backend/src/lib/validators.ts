@@ -62,8 +62,22 @@ export const FriendRequestSchema = z.object({
   receiverId: z.number().int().positive('receiverId is required'),
 });
 
+// Account
+export const DeleteAccountSchema = z.object({
+  password: z.string().min(1, 'Password is required'),
+});
+
+// Reports
+export const REPORT_REASONS = ['INAPPROPRIATE', 'SPAM', 'OTHER'] as const;
+
+export const ReportPlaceSchema = z.object({
+  reason: z.enum(REPORT_REASONS),
+  details: optionalText(500),
+});
+
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
 export type CreatePlaceInput = z.infer<typeof CreatePlaceSchema>;
 export type UpdatePlaceInput = z.infer<typeof UpdatePlaceSchema>;
+export type ReportPlaceInput = z.infer<typeof ReportPlaceSchema>;

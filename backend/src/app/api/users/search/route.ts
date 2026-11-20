@@ -3,6 +3,7 @@ import { db } from '@/src/lib/db';
 import { ValidationError } from '@/src/lib/errors';
 import { publicUserSelect } from '@/src/lib/selects';
 import { relationStatuses } from '@/src/lib/friends';
+import { getBlockedUserIds } from '@/src/lib/blocks';
 import { fail, ok, requireAuth } from '@/src/lib/http';
 
 // GET /api/users/search?q=ayse — find people to add as friends
@@ -15,9 +16,12 @@ export async function GET(req: NextRequest) {
       throw new ValidationError('Search query must be at least 2 characters');
     }
 
+    // Blocked users (in either direction) never show up in each other's results
+    const hiddenIds = [userId, ...(await getBlockedUserIds(userId))];
+
     const users = await db.user.findMany({
       where: {
-        id: { not: userId },
+        id: { notIn: hiddenIds },
         OR: [
           { email: { contains: q, mode: 'insensitive' } },
           { firstName: { contains: q, mode: 'insensitive' } },
