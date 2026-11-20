@@ -15,6 +15,7 @@ import { authAPI } from '@/src/api/auth';
 import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
 import { authStyles as styles } from '@/src/components/AuthForm/styles';
+import { openWebPage } from '@/src/utils/openWebPage';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -96,6 +97,19 @@ export default function RegisterScreen() {
         >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
         </TouchableOpacity>
+
+        {/* The terms say there is no tolerance for objectionable content (App Store guideline 1.2) */}
+        <Text style={styles.legalText}>
+          By signing up, you agree to the{' '}
+          <Text style={styles.legalLink} onPress={() => openWebPage('/terms')}>
+            Terms of Use
+          </Text>{' '}
+          and the{' '}
+          <Text style={styles.legalLink} onPress={() => openWebPage('/privacy')}>
+            Privacy Policy
+          </Text>
+          .
+        </Text>
 
         <Text style={styles.switchText}>
           Already have an account?{' '}

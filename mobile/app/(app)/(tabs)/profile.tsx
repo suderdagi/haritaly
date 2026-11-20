@@ -3,19 +3,35 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   TextInput,
   Alert,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/src/store/auth';
 import { usersAPI } from '@/src/api/users';
 import { getErrorMessage } from '@/src/api/client';
+import { getAppConfig } from '@/src/api/config';
+import { DeleteAccountModal } from '@/src/components/DeleteAccountModal/DeleteAccountModal';
+import { hasAiConsent, setAiConsent } from '@/src/utils/aiConsent';
+import { openWebPage } from '@/src/utils/openWebPage';
 import { displayName, initials } from '@/src/types';
+
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+function MenuRow({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.menuRow} onPress={onPress}>
+      <MaterialCommunityIcons name={icon} size={20} color="#6b7280" />
+      <Text style={styles.menuLabel}>{label}</Text>
+      <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" />
+    </TouchableOpacity>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -28,13 +44,30 @@ export default function ProfileScreen() {
     bio: user?.bio ?? '',
   });
   const [placeCount, setPlaceCount] = React.useState<number | null>(null);
+  const [aiAvailable, setAiAvailable] = React.useState(false);
+  const [aiAllowed, setAiAllowed] = React.useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = React.useState(false);
 
   React.useEffect(() => {
     usersAPI
       .getProfile()
       .then((profile) => setPlaceCount(profile._count?.places ?? 0))
       .catch(() => setPlaceCount(null));
+    getAppConfig().then((config) => setAiAvailable(config.aiSummary));
+    hasAiConsent().then(setAiAllowed);
   }, []);
+
+  const toggleAiSummaries = async (allowed: boolean) => {
+    setAiAllowed(allowed);
+    await setAiConsent(allowed);
+  };
+
+  const handleAccountDeleted = async () => {
+    setShowDeleteAccount(false);
+    await signOut();
+    router.replace('/(auth)/login');
+    Alert.alert('Account deleted', 'Your account and all of its data have been deleted.');
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -80,7 +113,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
@@ -187,6 +220,27 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Privacy, safety and the legal pages the App Store requires inside the app */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Privacy & safety</Text>
+          <View style={styles.menu}>
+            <MenuRow icon="account-cancel-outline" label="Blocked users" onPress={() => router.push('/blocked-users')} />
+            {aiAvailable && (
+              <View style={styles.menuRow}>
+                <MaterialCommunityIcons name="creation" size={20} color="#6b7280" />
+                <View style={styles.menuLabelGroup}>
+                  <Text style={styles.menuText}>AI summaries</Text>
+                  <Text style={styles.menuHint}>Allow sending saved notes to OpenAI</Text>
+                </View>
+                <Switch value={aiAllowed} onValueChange={toggleAiSummaries} />
+              </View>
+            )}
+            <MenuRow icon="shield-lock-outline" label="Privacy Policy" onPress={() => openWebPage('/privacy')} />
+            <MenuRow icon="file-document-outline" label="Terms of Use" onPress={() => openWebPage('/terms')} />
+            <MenuRow icon="lifebuoy" label="Help & Support" onPress={() => openWebPage('/support')} />
+          </View>
+        </View>
+
         {/* Logout Button */}
         <TouchableOpacity
           style={[styles.button, styles.logoutButton]}
@@ -195,8 +249,18 @@ export default function ProfileScreen() {
           <MaterialCommunityIcons name="logout" size={20} color="#ef4444" />
           <Text style={styles.logoutButtonText}>Log out</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteAccountButton} onPress={() => setShowDeleteAccount(true)}>
+          <Text style={styles.deleteAccountText}>Delete account</Text>
+        </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+
+      <DeleteAccountModal
+        visible={showDeleteAccount}
+        onClose={() => setShowDeleteAccount(false)}
+        onDeleted={handleAccountDeleted}
+      />
+    </View>
   );
 }
 
@@ -322,7 +386,6 @@ const styles = StyleSheet.create({
   logoutButton: {
     marginHorizontal: 16,
     marginTop: 24,
-    marginBottom: 24,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#fecaca',
@@ -330,5 +393,48 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     fontWeight: '600',
     color: '#ef4444',
+  },
+  menu: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+  },
+  menuLabelGroup: {
+    flex: 1,
+  },
+  menuLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1f2937',
+  },
+  menuText: {
+    fontSize: 15,
+    color: '#1f2937',
+  },
+  menuHint: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  deleteAccountButton: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginBottom: 24,
+  },
+  deleteAccountText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

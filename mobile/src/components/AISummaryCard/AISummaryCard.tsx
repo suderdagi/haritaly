@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { placesAPI } from '@/src/api/places';
 import { getErrorMessage } from '@/src/api/client';
+import { getAppConfig } from '@/src/api/config';
+import { AI_CONSENT_MESSAGE, hasAiConsent, setAiConsent } from '@/src/utils/aiConsent';
+import { openWebPage } from '@/src/utils/openWebPage';
 import { PlaceSummary } from '@/src/types';
 
 /**
  * "What friends say" card. The summary is only requested when the user taps the button,
  * so opening a place never costs an AI call by itself.
+ * The card is hidden when the server has no AI provider configured.
  */
 export function AISummaryCard({ placeId }: { placeId: number }) {
+  const [enabled, setEnabled] = useState(false);
   const [summary, setSummary] = useState<PlaceSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAppConfig().then((config) => active && setEnabled(config.aiSummary));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -25,6 +38,29 @@ export function AISummaryCard({ placeId }: { placeId: number }) {
       setLoading(false);
     }
   };
+
+  // Nothing is sent to the AI provider until the user has agreed once
+  const handlePress = async () => {
+    if (await hasAiConsent()) {
+      load();
+      return;
+    }
+    Alert.alert('Share with OpenAI?', AI_CONSENT_MESSAGE, [
+      { text: 'Privacy Policy', onPress: () => openWebPage('/privacy') },
+      { text: 'Not now', style: 'cancel' },
+      {
+        text: 'Allow',
+        onPress: async () => {
+          await setAiConsent(true);
+          load();
+        },
+      },
+    ]);
+  };
+
+  if (!enabled) {
+    return null;
+  }
 
   return (
     <View style={styles.card}>
@@ -61,10 +97,11 @@ export function AISummaryCard({ placeId }: { placeId: number }) {
       ) : (
         <>
           <Text style={styles.muted}>
-            Get a short summary of the ratings, notes and favorites you and your friends saved here.
+            Get a short summary of the ratings, notes and favorites you and your friends saved here, written by
+            OpenAI.
           </Text>
           {error && <Text style={styles.error}>{error}</Text>}
-          <TouchableOpacity style={styles.button} onPress={load} accessibilityLabel="Summarize with AI">
+          <TouchableOpacity style={styles.button} onPress={handlePress} accessibilityLabel="Summarize with AI">
             <MaterialCommunityIcons name="creation" size={18} color="#fff" />
             <Text style={styles.buttonText}>{error ? 'Try again' : 'Summarize with AI'}</Text>
           </TouchableOpacity>

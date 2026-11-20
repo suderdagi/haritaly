@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiResponse } from '@/src/types';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+/** The backend also serves the website (privacy policy, terms, support) at its root. */
+export const WEB_URL = API_URL.replace(/\/api\/?$/, '');
 export const TOKEN_KEY = 'userToken';
 
 const http = axios.create({
@@ -48,8 +50,8 @@ export const api = {
   post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
     request<T>({ method: 'POST', url, data, ...config }),
   put: <T>(url: string, data?: unknown) => request<T>({ method: 'PUT', url, data }),
-  delete: <T>(url: string, params?: Record<string, unknown>) =>
-    request<T>({ method: 'DELETE', url, params }),
+  delete: <T>(url: string, params?: Record<string, unknown>, data?: unknown) =>
+    request<T>({ method: 'DELETE', url, params, data }),
 };
 
 /** Human readable message for alerts, using the API's error text when there is one. */
@@ -61,8 +63,11 @@ export function getErrorMessage(error: unknown, fallback = 'Something went wrong
   return fallback;
 }
 
-/** Uploaded photos are stored as relative paths like `/uploads/abc.jpg`. */
+/**
+ * Photo URLs are absolute in production (cloud storage) and relative paths like
+ * `/uploads/abc.jpg` in local development.
+ */
 export function assetUrl(path: string): string {
   if (/^https?:\/\//.test(path)) return path;
-  return API_URL.replace(/\/api\/?$/, '') + path;
+  return WEB_URL + path;
 }

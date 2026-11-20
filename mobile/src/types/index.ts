@@ -80,6 +80,18 @@ export interface FriendRequest {
 
 export type Relation = 'FRIEND' | 'REQUEST_SENT' | 'REQUEST_RECEIVED' | 'NONE';
 
+export interface BlockedUser extends User {
+  blockedAt: string;
+}
+
+/** Must match REPORT_REASONS in the backend validators */
+export type ReportReason = 'INAPPROPRIATE' | 'SPAM' | 'OTHER';
+
+/** Optional server features, from GET /api/config */
+export interface AppConfig {
+  aiSummary: boolean;
+}
+
 export interface UserSearchResult extends User {
   relation: Relation;
 }

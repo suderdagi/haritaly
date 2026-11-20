@@ -19,6 +19,8 @@ import { assetUrl, getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
 import { displayName, Place } from '@/src/types';
 import { AISummaryCard } from '@/src/components/AISummaryCard/AISummaryCard';
+import { chooseOption } from '@/src/utils/chooseOption';
+import { confirmBlock, reportPlace } from '@/src/utils/safety';
 
 const mapsLink = (place: Place) =>
   `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
@@ -109,6 +111,20 @@ export default function PlaceDetailsScreen() {
     }
   };
 
+  // Friends' places can be reported, and the friend who saved them blocked
+  const handleSafetyMenu = () => {
+    if (!place?.user) return;
+    const owner = place.user;
+    chooseOption(place.name, [
+      { label: 'Report this place', onPress: () => reportPlace(place.id) },
+      {
+        label: `Block ${displayName(owner)}`,
+        destructive: true,
+        onPress: () => confirmBlock(owner, () => router.back()),
+      },
+    ]);
+  };
+
   const handleShare = async () => {
     if (!place) return;
     await Share.share({
@@ -181,6 +197,17 @@ export default function PlaceDetailsScreen() {
       <Stack.Screen
         options={{
           title: place.name,
+          headerRight: isOwner
+            ? undefined
+            : () => (
+                <TouchableOpacity
+                  onPress={handleSafetyMenu}
+                  hitSlop={12}
+                  accessibilityLabel="Report or block"
+                >
+                  <MaterialCommunityIcons name="flag-outline" size={22} color="#6b7280" />
+                </TouchableOpacity>
+              ),
         }}
       />
 

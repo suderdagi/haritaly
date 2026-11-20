@@ -15,6 +15,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { friendsAPI } from '@/src/api/friends';
 import { getErrorMessage } from '@/src/api/client';
 import { Avatar } from '@/src/components/Avatar/Avatar';
+import { chooseOption } from '@/src/utils/chooseOption';
+import { confirmBlock } from '@/src/utils/safety';
 import { displayName, Friend, FriendRequest, UserSearchResult } from '@/src/types';
 
 const SEARCH_DELAY_MS = 350;
@@ -99,6 +101,21 @@ export default function FriendsScreen() {
         style: 'destructive',
         onPress: () => runAction(() => friendsAPI.remove(friend.id), 'Could not remove friend'),
       },
+    ]);
+  };
+
+  const showFriendOptions = (friend: Friend) => {
+    chooseOption(displayName(friend), [
+      { label: 'Remove friend', onPress: () => confirmRemove(friend) },
+      { label: 'Block', destructive: true, onPress: () => confirmBlock(friend, load) },
+    ]);
+  };
+
+  // Declining offers blocking too, so nobody can keep sending unwanted requests
+  const declineRequest = (request: FriendRequest) => {
+    chooseOption(`Decline ${displayName(request.sender)}'s request?`, [
+      { label: 'Decline', onPress: () => runAction(() => friendsAPI.reject(request.id), 'Could not reject request') },
+      { label: 'Decline and block', destructive: true, onPress: () => confirmBlock(request.sender, load) },
     ]);
   };
 
@@ -196,20 +213,24 @@ export default function FriendsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.roundButton, styles.reject]}
-                  onPress={() => runAction(() => friendsAPI.reject(item.id), 'Could not reject request')}
-                  accessibilityLabel="Reject request"
+                  onPress={() => declineRequest(item)}
+                  accessibilityLabel="Decline request"
                 >
                   <MaterialCommunityIcons name="close" size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.card} onLongPress={() => confirmRemove(item)}>
+              <TouchableOpacity style={styles.card} onLongPress={() => showFriendOptions(item)}>
                 <Avatar user={item} />
                 <View style={styles.info}>
                   <Text style={styles.name}>{displayName(item)}</Text>
                   <Text style={styles.email}>{item.email}</Text>
                 </View>
-                <TouchableOpacity onPress={() => confirmRemove(item)} accessibilityLabel="Remove friend">
+                <TouchableOpacity
+                  onPress={() => showFriendOptions(item)}
+                  hitSlop={10}
+                  accessibilityLabel={`Options for ${displayName(item)}`}
+                >
                   <MaterialCommunityIcons name="dots-vertical" size={22} color="#9ca3af" />
                 </TouchableOpacity>
               </TouchableOpacity>

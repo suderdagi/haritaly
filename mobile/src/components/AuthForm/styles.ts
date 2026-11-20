@@ -67,4 +67,15 @@ export const authStyles = StyleSheet.create({
     color: '#6366f1',
     fontWeight: '600',
   },
+  legalText: {
+    marginTop: 16,
+    textAlign: 'center',
+    color: '#9ca3af',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  legalLink: {
+    color: '#6366f1',
+    fontWeight: '500',
+  },
 });

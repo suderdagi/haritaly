@@ -1,5 +1,5 @@
 import { api } from './client';
-import { Photo, Place, PlaceInput, PlaceSummary } from '@/src/types';
+import { Photo, Place, PlaceInput, PlaceSummary, ReportReason } from '@/src/types';
 
 export interface PhotoUpload {
   uri: string;
@@ -27,6 +27,10 @@ export const placesAPI = {
   updatePlace: (placeId: number, data: Partial<PlaceInput>) => api.put<Place>(`/places/${placeId}`, data),
 
   deletePlace: (placeId: number) => api.delete(`/places/${placeId}`),
+
+  /** Report a friend's place as objectionable. Reports are reviewed by hand. */
+  reportPlace: (placeId: number, reason: ReportReason) =>
+    api.post(`/places/${placeId}/report`, { reason }),
 
   uploadPhotos(placeId: number, photos: PhotoUpload[]) {
     const formData = new FormData();

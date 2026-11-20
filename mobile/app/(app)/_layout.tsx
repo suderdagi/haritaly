@@ -26,6 +26,7 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="add-place" options={{ title: 'Add Place' }} />
       <Stack.Screen name="place-details" options={{ title: 'Place' }} />
+      <Stack.Screen name="blocked-users" options={{ title: 'Blocked users' }} />
     </Stack>
   );
 }
