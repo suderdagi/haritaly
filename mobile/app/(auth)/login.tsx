@@ -32,7 +32,7 @@ export default function LoginScreen() {
     try {
       const { token, user } = await authAPI.login({ email: email.trim(), password });
       await signIn(token, user);
-      router.replace('/(app)/map');
+      router.replace('/map');
     } catch (err) {
       setError(getErrorMessage(err, 'Login failed'));
     } finally {

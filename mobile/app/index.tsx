@@ -14,5 +14,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={userToken ? '/(app)/map' : '/(auth)/login'} />;
+  return <Redirect href={userToken ? '/map' : '/(auth)/login'} />;
 }

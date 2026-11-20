@@ -44,7 +44,7 @@ export default function RegisterScreen() {
         lastName: form.lastName.trim() || undefined,
       });
       await signIn(token, user);
-      router.replace('/(app)/map');
+      router.replace('/map');
     } catch (err) {
       setError(getErrorMessage(err, 'Registration failed'));
     } finally {
