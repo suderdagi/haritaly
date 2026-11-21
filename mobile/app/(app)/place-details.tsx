@@ -235,12 +235,23 @@ export default function PlaceDetailsScreen() {
           <View style={styles.headerRow}>
             <View style={styles.titleCol}>
               <Text style={styles.name}>{place.name}</Text>
+                {Number(place.rating ?? 0) > 0 ? (
+                  <View style={styles.ratingContainer}>
+                    {renderStars(place.rating)}
+                    <Text style={styles.ratingText}>{Number(place.rating).toFixed(1)}</Text>
+                  </View>
+                ) : null}
                 <View style={styles.metaRow}>
                   {place.category ? (
                     <View style={styles.badge}><Text style={styles.badgeText}>{place.category}</Text></View>
                   ) : null}
-                  <MaterialCommunityIcons name="map-marker" size={16} color="#ec4899" style={{ marginLeft: 8 }} />
-                  <Text style={styles.smallMuted}>{place.address ? place.address.split(',')[place.address.split(',').length-1].trim() : ''}</Text>
+                  {/* Last part of the address, usually the district or city */}
+                  {place.address ? (
+                    <>
+                      <MaterialCommunityIcons name="map-marker" size={16} color="#ec4899" style={{ marginLeft: 8 }} />
+                      <Text style={styles.smallMuted}>{place.address.split(',').pop()?.trim()}</Text>
+                    </>
+                  ) : null}
                 </View>
                 {/* Recommendation info */}
                 {!isOwner && place.user ? (
@@ -289,37 +300,32 @@ export default function PlaceDetailsScreen() {
         {/* AI summary of the user's and friends' entries for this place */}
         <AISummaryCard placeId={place.id} />
 
-        {/* Favorites */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Favorites</Text>
-          {place.favoriteFood ? (
-            <View style={styles.favoriteRow}>
-              <MaterialCommunityIcons name="food" size={20} color="#FF6B35" />
-              <Text style={styles.favoriteText}>{place.favoriteFood}</Text>
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>No favorite food listed.</Text>
-          )}
-
-          {place.favoriteDrink ? (
-            <View style={styles.favoriteRow}>
-              <MaterialCommunityIcons name="cup" size={20} color="#4A90E2" />
-              <Text style={styles.favoriteText}>{place.favoriteDrink}</Text>
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>No favorite drink listed.</Text>
-          )}
-        </View>
+        {/* Favorites: only shown when the place has at least one */}
+        {place.favoriteFood || place.favoriteDrink ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Favorites</Text>
+            {place.favoriteFood ? (
+              <View style={styles.favoriteRow}>
+                <MaterialCommunityIcons name="food" size={20} color="#FF6B35" />
+                <Text style={styles.favoriteText}>{place.favoriteFood}</Text>
+              </View>
+            ) : null}
+            {place.favoriteDrink ? (
+              <View style={styles.favoriteRow}>
+                <MaterialCommunityIcons name="cup" size={20} color="#4A90E2" />
+                <Text style={styles.favoriteText}>{place.favoriteDrink}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Notes */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          {place.notes ? (
+        {place.notes ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notes</Text>
             <Text style={styles.notes}>{place.notes}</Text>
-          ) : (
-            <Text style={styles.emptyText}>No description yet.</Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         {/* Metadata */}
         <View style={styles.section}>
@@ -369,7 +375,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -430,12 +436,14 @@ const styles = StyleSheet.create({
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 2,
+    marginBottom: 2,
   },
   ratingText: {
     fontSize: 14,
     color: '#666',
     fontWeight: '600',
+    marginLeft: 4,
   },
   infoRow: {
     flexDirection: 'row',
@@ -574,10 +582,6 @@ const styles = StyleSheet.create({
     color: '#9f1239',
     fontSize: 12,
     fontWeight: '600',
-  },
-  emptyText: {
-    color: '#9CA3AF',
-    fontSize: 14,
   },
   recommendedText: {
     marginTop: 6,

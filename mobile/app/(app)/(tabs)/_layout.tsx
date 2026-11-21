@@ -8,11 +8,10 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: '#6366f1',
         tabBarInactiveTintColor: '#9ca3af',
+        // No custom padding: the default bottom padding keeps the tabs above the iPhone home indicator
         tabBarStyle: {
           borderTopColor: '#e5e7eb',
           borderTopWidth: 1,
-          paddingBottom: 8,
-          paddingTop: 8,
         },
         headerShown: true,
         headerTintColor: '#1f2937',

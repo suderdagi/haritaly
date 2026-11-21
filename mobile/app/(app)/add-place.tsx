@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
   },
   photoButton: {
     flex: 1,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6366f1',
     borderRadius: 8,
   },
   saveButtonText: {
