@@ -1,40 +1,38 @@
-import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useRef, useState } from 'react';
+import { StyleSheet, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { space } from '@/src/theme';
 import { authAPI } from '@/src/api/auth';
 import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
-import { authStyles as styles } from '@/src/components/AuthForm/styles';
+import { haptics } from '@/src/lib/haptics';
 import { openWebPage } from '@/src/utils/openWebPage';
+import { AppText, Button, PressableScale, TextField } from '@/src/components/ui';
+import { AuthScaffold } from '@/src/components/auth/AuthScaffold';
+import { PasswordField } from '@/src/components/auth/PasswordField';
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
+  const lastNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const update = (field: keyof typeof form) => (value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const update = (field: keyof typeof form) => (value: string) => setForm((prev) => ({ ...prev, [field]: value }));
+  const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && !loading;
 
-  const handleRegister = async () => {
+  const register = async () => {
+    if (!canSubmit) return;
     if (form.password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      haptics.warning();
+      setError(`Your password needs at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
-
     setLoading(true);
     setError(null);
     try {
@@ -45,79 +43,142 @@ export default function RegisterScreen() {
         lastName: form.lastName.trim() || undefined,
       });
       await signIn(token, user);
+      haptics.success();
       router.replace('/map');
     } catch (err) {
+      haptics.warning();
       setError(getErrorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }
   };
 
-  const canSubmit = form.email.trim().length > 0 && form.password.length > 0 && !loading;
-
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <MaterialCommunityIcons name="map-marker-plus" size={56} color="#6366f1" style={styles.logo} />
-        <Text style={styles.title}>Create an account</Text>
-        <Text style={styles.subtitle}>Save your places and share them with friends</Text>
+    <AuthScaffold
+      heroHeight={220}
+      title="Create your account"
+      subtitle="Save the places you love and see the ones your friends recommend."
+    >
+      <View style={styles.row}>
+        <TextField
+          placeholder="First name"
+          value={form.firstName}
+          onChangeText={update('firstName')}
+          autoComplete="given-name"
+          textContentType="givenName"
+          returnKeyType="next"
+          onSubmitEditing={() => lastNameRef.current?.focus()}
+          containerStyle={styles.half}
+          maxLength={50}
+        />
+        <TextField
+          ref={lastNameRef}
+          placeholder="Last name"
+          value={form.lastName}
+          onChangeText={update('lastName')}
+          autoComplete="family-name"
+          textContentType="familyName"
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
+          containerStyle={styles.half}
+          maxLength={50}
+        />
+      </View>
+      <TextField
+        ref={emailRef}
+        icon="mail-outline"
+        placeholder="Email"
+        value={form.email}
+        onChangeText={update('email')}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        containerStyle={styles.gap}
+        accessibilityLabel="Email"
+      />
+      <PasswordField
+        ref={passwordRef}
+        placeholder="Password"
+        value={form.password}
+        onChangeText={update('password')}
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="go"
+        onSubmitEditing={register}
+        hint={`At least ${MIN_PASSWORD_LENGTH} characters`}
+        containerStyle={styles.gap}
+        accessibilityLabel="Password"
+      />
 
-        <View style={styles.row}>
-          <TextInput style={styles.input} placeholder="First name" value={form.firstName} onChangeText={update('firstName')} />
-          <TextInput style={styles.input} placeholder="Last name" value={form.lastName} onChangeText={update('lastName')} />
-        </View>
-        <View style={styles.row}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={form.email}
-            onChangeText={update('email')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
-        </View>
-        <View style={styles.row}>
-          <TextInput
-            style={styles.input}
-            placeholder={`Password (min. ${MIN_PASSWORD_LENGTH} characters)`}
-            value={form.password}
-            onChangeText={update('password')}
-            secureTextEntry
-            autoComplete="new-password"
-          />
-        </View>
+      {error && (
+        <AppText variant="footnote" tone="danger" style={styles.error} accessibilityLiveRegion="polite">
+          {error}
+        </AppText>
+      )}
 
-        {error && <Text style={styles.error}>{error}</Text>}
+      <Button title="Create Account" onPress={register} loading={loading} disabled={!canSubmit} fullWidth haptic style={styles.submit} />
 
-        <TouchableOpacity
-          style={[styles.button, !canSubmit && styles.buttonDisabled]}
-          onPress={handleRegister}
-          disabled={!canSubmit}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign up</Text>}
-        </TouchableOpacity>
+      {/* The terms say there is no tolerance for objectionable content (App Store guideline 1.2) */}
+      <AppText variant="footnote" tone="secondary" align="center" style={styles.legal}>
+        By creating an account you agree to the{' '}
+        <AppText variant="footnote" tone="accent" style={styles.link} onPress={() => openWebPage('/terms')} accessibilityRole="link">
+          Terms of Use
+        </AppText>{' '}
+        and the{' '}
+        <AppText variant="footnote" tone="accent" style={styles.link} onPress={() => openWebPage('/privacy')} accessibilityRole="link">
+          Privacy Policy
+        </AppText>
+        .
+      </AppText>
 
-        {/* The terms say there is no tolerance for objectionable content (App Store guideline 1.2) */}
-        <Text style={styles.legalText}>
-          By signing up, you agree to the{' '}
-          <Text style={styles.legalLink} onPress={() => openWebPage('/terms')}>
-            Terms of Use
-          </Text>{' '}
-          and the{' '}
-          <Text style={styles.legalLink} onPress={() => openWebPage('/privacy')}>
-            Privacy Policy
-          </Text>
-          .
-        </Text>
-
-        <Text style={styles.switchText}>
-          Already have an account?{' '}
-          <Link href="/(auth)/login" replace style={styles.switchLink}>
+      <View style={styles.switchRow}>
+        <AppText variant="callout" tone="secondary">
+          Already have an account?
+        </AppText>
+        <PressableScale onPress={() => router.replace('/(auth)/login')} hitSlop={10} accessibilityRole="link">
+          <AppText variant="calloutMedium" tone="accent">
             Log in
-          </Link>
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </AppText>
+        </PressableScale>
+      </View>
+    </AuthScaffold>
   );
 }
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: space.sm,
+  },
+  half: {
+    flex: 1,
+  },
+  gap: {
+    marginTop: space.sm,
+  },
+  error: {
+    marginTop: space.sm,
+    marginHorizontal: space.xxs,
+  },
+  submit: {
+    marginTop: space.xl,
+  },
+  link: {
+    textDecorationLine: 'underline',
+  },
+  legal: {
+    marginTop: space.md,
+    paddingHorizontal: space.md,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: space.xl,
+  },
+});

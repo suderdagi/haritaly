@@ -1,6 +1,8 @@
 import React from 'react';
 import { Redirect, Stack } from 'expo-router';
 import { useAuth } from '@/src/store/auth';
+import { LocationProvider } from '@/src/store/location';
+import { colors, type } from '@/src/theme';
 
 /**
  * Signed-in area: the tab bar plus screens pushed on top of it.
@@ -16,17 +18,30 @@ export default function AppLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerTintColor: '#1f2937',
-        headerTitleStyle: { fontWeight: '600' },
-        headerBackTitle: 'Back',
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="add-place" options={{ title: 'Add Place' }} />
-      <Stack.Screen name="place-details" options={{ title: 'Place' }} />
-      <Stack.Screen name="blocked-users" options={{ title: 'Blocked users' }} />
-    </Stack>
+    <LocationProvider>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.text,
+          headerTitleStyle: { fontSize: 17, fontWeight: type.headline.fontWeight, color: colors.text },
+          // Just the chevron, the way iOS shows it in modern apps
+          headerBackButtonDisplayMode: 'minimal',
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="add-place" options={{ title: 'New place' }} />
+        <Stack.Screen
+          name="pick-location"
+          // Full screen, so dragging the map can never be mistaken for dismissing a sheet
+          options={{ headerShown: false, presentation: 'fullScreenModal' }}
+        />
+        <Stack.Screen name="place-details" options={{ title: '' }} />
+        <Stack.Screen name="friend" options={{ title: '' }} />
+        <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', presentation: 'modal' }} />
+        <Stack.Screen name="blocked-users" options={{ title: 'Blocked people' }} />
+      </Stack>
+    </LocationProvider>
   );
 }

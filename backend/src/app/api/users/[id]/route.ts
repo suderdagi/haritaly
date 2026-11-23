@@ -17,7 +17,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { ...publicUserSelect, _count: { select: { places: true } } },
+      select: {
+        ...publicUserSelect,
+        // Others only learn how many places are shared with friends, not how many are private
+        _count: { select: { places: viewerId === userId ? true : { where: { isPrivate: false } } } },
+      },
     });
 
     if (!user) {

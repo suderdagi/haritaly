@@ -46,6 +46,7 @@ export const CreatePlaceSchema = z.object({
   notes: optionalText(1000),
   favoriteFood: optionalText(100),
   favoriteDrink: optionalText(100),
+  isPrivate: z.boolean().optional(),
 });
 
 export const UpdatePlaceSchema = CreatePlaceSchema.partial();

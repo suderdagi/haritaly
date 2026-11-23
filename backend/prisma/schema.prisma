@@ -106,6 +106,8 @@ model Place {
   notes          String?
   favoriteFood   String?
   favoriteDrink  String?
+  // Private places are only visible to their owner, never to friends
+  isPrivate      Boolean    @default(false)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

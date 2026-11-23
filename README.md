@@ -7,20 +7,26 @@ The repository has two parts:
 | Folder | What it is | Stack |
 | --- | --- | --- |
 | [`backend/`](backend) | REST API and website (privacy policy, terms, support) | Next.js 15 route handlers, TypeScript, Prisma, PostgreSQL, JWT, Zod, Vitest, OpenAI API, Vercel Blob |
-| [`mobile/`](mobile) | iOS / Android app | React Native, Expo 54, Expo Router, react-native-maps, EAS Build |
+| [`mobile/`](mobile) | iOS / Android app | React Native, Expo 54, Expo Router, react-native-maps, Reanimated, Gesture Handler, Bottom Sheet, EAS Build |
 
 ## Features
 
 - Sign up and log in with email and password (bcrypt + JWT)
-- Save a place at your current location with category, rating, favorite food/drink, notes and photos
+- Save a place where you are, where you dropped a pin, or anywhere you find with the location picker (address search or moving a pin), with category, rating, favorite food/drink, notes and photos
+- Share a place with your friends or keep it private, visible only to you
 - Edit or delete your own places
-- Find people by name or email, send friend requests, accept or reject them
+- Find people by name or email, send friend requests, accept or reject them, and open a friend's profile to see the places they share
+- **The map:** Apple's muted map style with markers that tell your places from friends' and show the category; a place saved by several friends becomes one marker, and its sheet shows what each of them said; markers close together merge into clusters; search, owner and category filters, and a draggable sheet with the places around you
 - See friends' places in the area shown on the map; panning loads the places saved there
 - Add your own or friends' places to favorites
 - **AI summary:** one tap summarizes what you and your friends saved about a place (ratings, notes, favorite food and drinks) with an LLM, after the user agrees to share the notes with OpenAI
-- Places are private: only you and your friends can see them
+- Places are only visible to you and your friends, and private places only to you
 - **Safety:** report a friend's place, block users (ends the friendship, stops requests, hides each other from search), manage blocked users
 - **Account deletion** inside the app, which removes every place, photo and friendship
+
+## Design
+
+The app has its own design system: a warm neutral base (ivory, stone, charcoal) with four muted accents that each carry one meaning, a type scale on SF Pro, spacing, radius, shadow and motion tokens, and shared components. Every screen is built from them. See [docs/design-system.md](docs/design-system.md).
 
 ## Architecture
 
@@ -85,9 +91,10 @@ Responses have the shape `{ "success": true, "data": ... }` or `{ "success": fal
 | GET / PUT / DELETE | `/api/users/profile` | Current user's profile / edit / delete the account (`{ password }`) |
 | GET | `/api/users/search?q=` | Find people to add |
 | GET | `/api/users/:id` | Public profile |
+| GET | `/api/users/:id/places` | A friend's shared places (all of them for yourself) |
 | POST / DELETE | `/api/users/:id/block` | Block / unblock a user |
 | GET | `/api/users/blocked` | Users I blocked |
-| GET / POST | `/api/places` | My places / save a place |
+| GET / POST | `/api/places` | My places / save a place (`isPrivate: true` keeps it to yourself) |
 | GET / PUT / DELETE | `/api/places/:id` | Place details / edit / delete |
 | GET | `/api/places/nearby?lat=&lng=&radius=` | Friends' places nearby |
 | GET | `/api/places/search?q=` | Search my and my friends' places |
@@ -197,10 +204,12 @@ npm run submit:ios               # uploads the latest build to App Store Connect
 | Guideline | Where it is handled |
 | --- | --- |
 | 5.1.1(v) Account deletion | Profile → Delete account, `DELETE /api/users/profile` |
-| 1.2 User-generated content | Report (flag icon on a friend's place), block (place page, Friends tab, declining a request), Terms of Use with a zero-tolerance clause accepted at sign-up, contact email on `/support` |
+| 1.2 User-generated content | Report and block from the ••• menu and the link at the bottom of a friend's place, block from a friend's profile and when declining a request, Terms of Use with a zero-tolerance clause accepted at sign-up, contact email on `/support` |
 | 5.1.1(i) Privacy policy | `/privacy` (English and Turkish), linked at sign-up and in Profile |
 | 5.1.2(i) Third-party AI | Consent dialog before the first AI summary, switch in Profile |
 | 5.1.1(ii) Permissions | Purpose strings in `app.json`; the photo library uses the system picker without a permission prompt |
+| 5.1.1 / 5.1.5 Location | Asked only when the user taps something that needs it, explained first, "while using" only; the map and adding places work without it; it is never sent to friends |
+| 4.0 Design | Built on iOS conventions: native navigation and sheets, safe areas, Dynamic Type with limits only on fixed chrome, VoiceOver labels |
 | 2.1 App completeness | Demo account with friends and places (`scripts/seed-demo.mjs`) |
 
 ## Security notes
@@ -218,5 +227,6 @@ npm run submit:ios               # uploads the latest build to App Store Connect
 - Refresh tokens instead of a single 7-day token
 - Rate limiting on login and registration
 - Turkish translation of the app (the website pages already have one)
+- Dark mode (the color tokens are in one place, so a dark palette can be added there)
 - PostGIS for distance queries once the data grows
 - Push notifications for friend requests

@@ -1,440 +1,291 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  TextInput,
-  Alert,
-  Switch,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useCallback, useState } from 'react';
+import { Alert, Animated, Linking, StyleSheet, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import Constants from 'expo-constants';
+import { colors, radius, screenPadding, space } from '@/src/theme';
 import { useAuth } from '@/src/store/auth';
+import { useUserLocation } from '@/src/store/location';
 import { usersAPI } from '@/src/api/users';
-import { getErrorMessage } from '@/src/api/client';
+import { friendsAPI } from '@/src/api/friends';
+import { placesAPI } from '@/src/api/places';
 import { getAppConfig } from '@/src/api/config';
-import { DeleteAccountModal } from '@/src/components/DeleteAccountModal/DeleteAccountModal';
 import { hasAiConsent, setAiConsent } from '@/src/utils/aiConsent';
 import { openWebPage } from '@/src/utils/openWebPage';
-import { displayName, initials } from '@/src/types';
+import { displayName } from '@/src/types';
+import {
+  AppText,
+  Avatar,
+  Button,
+  LargeTitle,
+  ListGroup,
+  ListRow,
+  PressableScale,
+  ScreenHeader,
+  SectionHeader,
+  useScrollTitle,
+} from '@/src/components/ui';
+import { DeleteAccountModal } from '@/src/components/DeleteAccountModal/DeleteAccountModal';
 
-type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-
-function MenuRow({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={styles.menuRow} onPress={onPress}>
-      <MaterialCommunityIcons name={icon} size={20} color="#6b7280" />
-      <Text style={styles.menuLabel}>{label}</Text>
-      <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" />
-    </TouchableOpacity>
-  );
+interface Stats {
+  places: number | null;
+  friends: number | null;
+  favorites: number | null;
 }
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, signOut, updateUser } = useAuth();
-  const [isEditing, setIsEditing] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [formData, setFormData] = React.useState({
-    firstName: user?.firstName ?? '',
-    lastName: user?.lastName ?? '',
-    bio: user?.bio ?? '',
-  });
-  const [placeCount, setPlaceCount] = React.useState<number | null>(null);
-  const [aiAvailable, setAiAvailable] = React.useState(false);
-  const [aiAllowed, setAiAllowed] = React.useState(false);
-  const [showDeleteAccount, setShowDeleteAccount] = React.useState(false);
+  const { user, signOut } = useAuth();
+  const { status: locationStatus, requestLocation } = useUserLocation();
+  const { scrollY, onScroll } = useScrollTitle();
+  const [stats, setStats] = useState<Stats>({ places: null, friends: null, favorites: null });
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [aiAllowed, setAiAllowed] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
-  React.useEffect(() => {
-    usersAPI
-      .getProfile()
-      .then((profile) => setPlaceCount(profile._count?.places ?? 0))
-      .catch(() => setPlaceCount(null));
-    getAppConfig().then((config) => setAiAvailable(config.aiSummary));
-    hasAiConsent().then(setAiAllowed);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const settle = <T,>(promise: Promise<T>, pick: (value: T) => number) =>
+        promise.then(pick).catch(() => null);
+      Promise.all([
+        settle(usersAPI.getProfile(), (p) => p._count?.places ?? 0),
+        settle(friendsAPI.list(), (f) => f.length),
+        settle(placesAPI.getFavorites(), (f) => f.length),
+      ]).then(([places, friends, favorites]) => active && setStats({ places, friends, favorites }));
+      getAppConfig().then((config) => active && setAiAvailable(config.aiSummary));
+      hasAiConsent().then((allowed) => active && setAiAllowed(allowed));
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
-  const toggleAiSummaries = async (allowed: boolean) => {
+  const toggleAi = async (allowed: boolean) => {
     setAiAllowed(allowed);
     await setAiConsent(allowed);
   };
 
-  const handleAccountDeleted = async () => {
+  const logOut = () => {
+    Alert.alert('Log out of Haritaly?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
+          router.replace('/(auth)/login');
+        },
+      },
+    ]);
+  };
+
+  const accountDeleted = async () => {
     setShowDeleteAccount(false);
     await signOut();
     router.replace('/(auth)/login');
-    Alert.alert('Account deleted', 'Your account and all of its data have been deleted.');
+    Alert.alert('Account deleted', 'Your account and everything in it have been deleted.');
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Log out',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log out',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
-  };
+  if (!user) return null;
 
-  const handleSaveProfile = async () => {
-    try {
-      setIsLoading(true);
-      const updated = await usersAPI.updateProfile({
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        bio: formData.bio.trim(),
-      });
-      await updateUser({ ...user!, ...updated });
-      setIsEditing(false);
-    } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, 'Failed to update profile'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (!user) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
-    );
-  }
+  const locationValue =
+    locationStatus === 'granted' ? 'While using' : locationStatus === 'denied' ? 'Off' : 'Not set';
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials(user)}</Text>
-          </View>
-          <Text style={styles.userName}>{displayName(user)}</Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
-          {placeCount !== null && (
-            <Text style={styles.userEmail}>
-              {placeCount} saved {placeCount === 1 ? 'place' : 'places'}
-            </Text>
-          )}
-        </View>
+      <ScreenHeader title="Profile" scrollY={scrollY} />
+      <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={styles.content}>
+        <LargeTitle title="Profile" />
 
-        {/* Edit/Save Button */}
-        {!isEditing && (
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => setIsEditing(true)}
-          >
-            <MaterialCommunityIcons name="pencil" size={20} color="#fff" />
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
+        {/* Who you are */}
+        <View style={styles.identity}>
+          <Avatar user={user} size={84} />
+          <View style={styles.identityText}>
+            <AppText variant="title2" numberOfLines={2}>
+              {displayName(user)}
+            </AppText>
+            <AppText variant="subhead" tone="secondary" numberOfLines={1}>
+              {user.email}
+            </AppText>
+          </View>
+        </View>
+        {user.bio ? (
+          <AppText variant="callout" style={styles.bio}>
+            {user.bio}
+          </AppText>
+        ) : (
+          <PressableScale onPress={() => router.push('/edit-profile')} style={styles.bioPrompt} accessibilityRole="button">
+            <AppText variant="callout" tone="accent">
+              Add a short bio so friends know it’s you
+            </AppText>
+          </PressableScale>
         )}
 
-        {/* Profile Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>First Name</Text>
-            <TextInput
-              style={[styles.input, !isEditing && styles.inputDisabled]}
-              value={formData.firstName}
-              onChangeText={(text) =>
-                setFormData({ ...formData, firstName: text })
-              }
-              editable={isEditing}
-              placeholderTextColor="#d1d5db"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Last Name</Text>
-            <TextInput
-              style={[styles.input, !isEditing && styles.inputDisabled]}
-              value={formData.lastName}
-              onChangeText={(text) =>
-                setFormData({ ...formData, lastName: text })
-              }
-              editable={isEditing}
-              placeholderTextColor="#d1d5db"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Bio</Text>
-            <TextInput
-              style={[styles.input, styles.bioInput, !isEditing && styles.inputDisabled]}
-              value={formData.bio}
-              onChangeText={(text) => setFormData({ ...formData, bio: text })}
-              editable={isEditing}
-              multiline
-              numberOfLines={4}
-              placeholder="Tell us about yourself"
-              placeholderTextColor="#d1d5db"
-            />
-          </View>
-
-          {isEditing && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.saveButton]}
-                onPress={handleSaveProfile}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="check" size={20} color="#fff" />
-                    <Text style={styles.buttonText}>Save</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={() => {
-                  setIsEditing(false);
-                  setFormData({
-                    firstName: user.firstName ?? '',
-                    lastName: user.lastName ?? '',
-                    bio: user.bio ?? '',
-                  });
-                }}
-              >
-                <MaterialCommunityIcons name="close" size={20} color="#6366f1" />
-                <Text style={[styles.buttonText, styles.cancelButtonText]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        <View style={styles.stats}>
+          <Stat value={stats.places} label="Places" onPress={() => router.navigate('/map')} />
+          <View style={styles.statDivider} />
+          <Stat value={stats.friends} label="Friends" onPress={() => router.navigate('/friends')} />
+          <View style={styles.statDivider} />
+          <Stat value={stats.favorites} label="Favorites" onPress={() => router.navigate('/favorites')} />
         </View>
 
-        {/* Privacy, safety and the legal pages the App Store requires inside the app */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacy & safety</Text>
-          <View style={styles.menu}>
-            <MenuRow icon="account-cancel-outline" label="Blocked users" onPress={() => router.push('/blocked-users')} />
-            {aiAvailable && (
-              <View style={styles.menuRow}>
-                <MaterialCommunityIcons name="creation" size={20} color="#6b7280" />
-                <View style={styles.menuLabelGroup}>
-                  <Text style={styles.menuText}>AI summaries</Text>
-                  <Text style={styles.menuHint}>Allow sending saved notes to OpenAI</Text>
-                </View>
-                <Switch value={aiAllowed} onValueChange={toggleAiSummaries} />
-              </View>
-            )}
-            <MenuRow icon="shield-lock-outline" label="Privacy Policy" onPress={() => openWebPage('/privacy')} />
-            <MenuRow icon="file-document-outline" label="Terms of Use" onPress={() => openWebPage('/terms')} />
-            <MenuRow icon="lifebuoy" label="Help & Support" onPress={() => openWebPage('/support')} />
-          </View>
+        <Button
+          title="Edit Profile"
+          icon="create-outline"
+          variant="secondary"
+          size="md"
+          onPress={() => router.push('/edit-profile')}
+          style={styles.edit}
+        />
+
+        <View style={styles.block}>
+          <SectionHeader title="Privacy & safety" />
+          <ListGroup>
+            <ListRow
+              icon="navigate-outline"
+              tint="accent"
+              title="Location"
+              subtitle="Never shared with friends"
+              value={locationValue}
+              onPress={() => (locationStatus === 'undetermined' ? requestLocation() : Linking.openSettings())}
+              accessibilityHint={locationStatus === 'undetermined' ? 'Asks for location access' : 'Opens Settings'}
+            />
+            <ListRow
+              icon="ban-outline"
+              tint="neutral"
+              title="Blocked people"
+              onPress={() => router.push('/blocked-users')}
+            />
+            {aiAvailable ? (
+              <ListRow
+                icon="sparkles"
+                tint="social"
+                title="AI summaries"
+                subtitle="Lets OpenAI read saved notes to summarize a place"
+                switchValue={aiAllowed}
+                onSwitchChange={toggleAi}
+              />
+            ) : null}
+          </ListGroup>
         </View>
 
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={[styles.button, styles.logoutButton]}
-          onPress={handleLogout}
-        >
-          <MaterialCommunityIcons name="logout" size={20} color="#ef4444" />
-          <Text style={styles.logoutButtonText}>Log out</Text>
-        </TouchableOpacity>
+        <View style={styles.block}>
+          <SectionHeader title="Help & legal" />
+          <ListGroup>
+            <ListRow icon="help-buoy-outline" title="Help & Support" onPress={() => openWebPage('/support')} />
+            <ListRow icon="shield-checkmark-outline" title="Privacy Policy" onPress={() => openWebPage('/privacy')} />
+            <ListRow icon="document-text-outline" title="Terms of Use" onPress={() => openWebPage('/terms')} />
+          </ListGroup>
+        </View>
 
-        <TouchableOpacity style={styles.deleteAccountButton} onPress={() => setShowDeleteAccount(true)}>
-          <Text style={styles.deleteAccountText}>Delete account</Text>
-        </TouchableOpacity>
-      </ScrollView>
+        <View style={styles.block}>
+          <ListGroup>
+            <ListRow icon="log-out-outline" title="Log Out" onPress={logOut} chevron={false} />
+            <ListRow
+              icon="trash-outline"
+              title="Delete Account"
+              destructive
+              onPress={() => setShowDeleteAccount(true)}
+              chevron={false}
+            />
+          </ListGroup>
+          <AppText variant="footnote" tone="tertiary" style={styles.footnote}>
+            Deleting your account removes your places, photos, favorites and friendships for good.
+          </AppText>
+        </View>
+
+        <AppText variant="caption" tone="tertiary" align="center" style={styles.version}>
+          Haritaly {Constants.expoConfig?.version ?? ''}
+        </AppText>
+      </Animated.ScrollView>
 
       <DeleteAccountModal
         visible={showDeleteAccount}
         onClose={() => setShowDeleteAccount(false)}
-        onDeleted={handleAccountDeleted}
+        onDeleted={accountDeleted}
       />
     </View>
+  );
+}
+
+function Stat({ value, label, onPress }: { value: number | null; label: string; onPress: () => void }) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      style={styles.stat}
+      accessibilityRole="button"
+      accessibilityLabel={`${value ?? 'Unknown number of'} ${label}`}
+    >
+      <AppText variant="title2">{value ?? '–'}</AppText>
+      <AppText variant="caption" tone="secondary">
+        {label}
+      </AppText>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background,
   },
-  profileHeader: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+  content: {
+    paddingBottom: space.xxxl,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#6366f1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 28,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1f2937',
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  editButton: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#6366f1',
-    borderRadius: 8,
+  identity: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: space.md,
+    paddingHorizontal: screenPadding,
   },
-  editButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  section: {
-    marginTop: 24,
-    marginHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 12,
-  },
-  formGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#1f2937',
-  },
-  inputDisabled: {
-    backgroundColor: '#f3f4f6',
-    borderColor: '#d1d5db',
-  },
-  bioInput: {
-    textAlignVertical: 'top',
-    paddingTop: 10,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  button: {
+  identityText: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
+    gap: 2,
   },
-  saveButton: {
-    backgroundColor: '#6366f1',
+  bio: {
+    marginTop: space.md,
+    paddingHorizontal: screenPadding,
   },
-  cancelButton: {
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  bioPrompt: {
+    marginTop: space.md,
+    marginHorizontal: screenPadding,
   },
-  buttonText: {
-    fontWeight: '600',
-    color: '#fff',
-  },
-  cancelButtonText: {
-    color: '#6366f1',
-  },
-  logoutButton: {
-    marginHorizontal: 16,
-    marginTop: 24,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  logoutButtonText: {
-    fontWeight: '600',
-    color: '#ef4444',
-  },
-  menu: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    overflow: 'hidden',
-  },
-  menuRow: {
+  stats: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
+    marginTop: space.lg,
+    marginHorizontal: screenPadding,
+    paddingVertical: space.sm,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
   },
-  menuLabelGroup: {
+  stat: {
     flex: 1,
-  },
-  menuLabel: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1f2937',
-  },
-  menuText: {
-    fontSize: 15,
-    color: '#1f2937',
-  },
-  menuHint: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 2,
-  },
-  deleteAccountButton: {
     alignItems: 'center',
-    paddingVertical: 16,
-    marginBottom: 24,
+    gap: 2,
+    paddingVertical: space.xxs,
   },
-  deleteAccountText: {
-    color: '#dc2626',
-    fontSize: 14,
-    fontWeight: '500',
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 32,
+    backgroundColor: colors.hairline,
+  },
+  edit: {
+    marginTop: space.sm,
+    marginHorizontal: screenPadding,
+  },
+  block: {
+    marginTop: space.xl,
+    paddingHorizontal: screenPadding,
+  },
+  footnote: {
+    marginTop: space.sm,
+    marginHorizontal: space.xxs,
+  },
+  version: {
+    marginTop: space.xl,
   },
 });

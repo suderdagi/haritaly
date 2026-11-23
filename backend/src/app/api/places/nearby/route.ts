@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     const candidates = await db.place.findMany({
       where: {
         userId: { in: friendIds },
+        isPrivate: false,
         latitude: { gte: box.minLat, lte: box.maxLat },
         longitude: { gte: box.minLng, lte: box.maxLng },
         ...(query.category ? { category: query.category } : {}),

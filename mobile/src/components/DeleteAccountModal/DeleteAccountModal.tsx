@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, radius, shadow, space } from '@/src/theme';
 import { usersAPI } from '@/src/api/users';
 import { getErrorMessage } from '@/src/api/client';
+import { AppText } from '../ui/AppText';
+import { Button } from '../ui/Button';
+import { PasswordField } from '../auth/PasswordField';
 
 interface Props {
   visible: boolean;
@@ -20,8 +15,8 @@ interface Props {
 }
 
 /**
- * Asks for the password before deleting the account for good.
- * A custom modal instead of Alert.prompt, which only exists on iOS.
+ * Asks for the password before deleting the account for good (App Store guideline 5.1.1(v): deletion
+ * must be possible inside the app). A custom dialog because Alert.prompt only exists on iOS.
  */
 export function DeleteAccountModal({ visible, onClose, onDeleted }: Props) {
   const [password, setPassword] = useState('');
@@ -34,7 +29,7 @@ export function DeleteAccountModal({ visible, onClose, onDeleted }: Props) {
     onClose();
   };
 
-  const handleDelete = async () => {
+  const remove = async () => {
     setDeleting(true);
     setError(null);
     try {
@@ -50,39 +45,40 @@ export function DeleteAccountModal({ visible, onClose, onDeleted }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <KeyboardAvoidingView
-        style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.dialog}>
-          <Text style={styles.title}>Delete account</Text>
-          <Text style={styles.text}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.dialog} accessibilityViewIsModal>
+          <View style={styles.icon}>
+            <Ionicons name="trash-outline" size={22} color={colors.danger} />
+          </View>
+          <AppText variant="title3" align="center" accessibilityRole="header">
+            Delete your account?
+          </AppText>
+          <AppText variant="callout" tone="secondary" align="center" style={styles.text}>
             This permanently deletes your account and everything in it: your places, photos, favorites and
-            friendships. It cannot be undone.
-          </Text>
+            friendships. It can’t be undone.
+          </AppText>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Your password"
+          <PasswordField
+            placeholder="Enter your password to confirm"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="password"
+            autoComplete="current-password"
             autoFocus
+            error={error}
+            accessibilityLabel="Password"
           />
-          {error && <Text style={styles.error}>{error}</Text>}
 
           <View style={styles.buttons}>
-            <TouchableOpacity style={[styles.button, styles.cancel]} onPress={close} disabled={deleting}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.delete, (!password || deleting) && styles.disabled]}
-              onPress={handleDelete}
-              disabled={!password || deleting}
-            >
-              {deleting ? <ActivityIndicator color="#fff" /> : <Text style={styles.deleteText}>Delete</Text>}
-            </TouchableOpacity>
+            <Button title="Cancel" variant="secondary" size="md" onPress={close} disabled={deleting} style={styles.button} />
+            <Button
+              title="Delete"
+              variant="destructive"
+              size="md"
+              onPress={remove}
+              loading={deleting}
+              disabled={!password}
+              style={styles.button}
+            />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -94,64 +90,36 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: 'rgba(17, 24, 39, 0.5)',
+    padding: space.xl,
+    backgroundColor: colors.scrim,
   },
   dialog: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
+    padding: space.xl,
+    borderRadius: radius.xl,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    boxShadow: shadow.raised,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
+  icon: {
+    alignSelf: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.dangerSoft,
+    marginBottom: space.md,
   },
   text: {
-    fontSize: 14,
-    color: '#4b5563',
-    lineHeight: 20,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-  },
-  error: {
-    color: '#ef4444',
-    marginTop: 8,
+    marginTop: space.xs,
+    marginBottom: space.lg,
   },
   buttons: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
+    gap: space.sm,
+    marginTop: space.lg,
   },
   button: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  cancel: {
-    backgroundColor: '#f3f4f6',
-  },
-  cancelText: {
-    fontWeight: '600',
-    color: '#374151',
-  },
-  delete: {
-    backgroundColor: '#ef4444',
-  },
-  deleteText: {
-    fontWeight: '700',
-    color: '#fff',
-  },
-  disabled: {
-    opacity: 0.5,
   },
 });

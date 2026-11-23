@@ -3,7 +3,7 @@ import { db } from '@/src/lib/db';
 import { ValidationError } from '@/src/lib/errors';
 import { serializePlace } from '@/src/lib/serializers';
 import { getFriendIds } from '@/src/lib/friends';
-import { placeInclude } from '@/src/lib/places';
+import { placeInclude, visibleToViewer } from '@/src/lib/places';
 import { fail, ok, requireAuth } from '@/src/lib/http';
 
 // GET /api/places/search?q=kahve — searches the user's and their friends' places
@@ -19,11 +19,15 @@ export async function GET(req: NextRequest) {
     const friendIds = await getFriendIds(userId);
     const places = await db.place.findMany({
       where: {
-        userId: { in: [userId, ...friendIds] },
-        OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { address: { contains: q, mode: 'insensitive' } },
-          { favoriteFood: { contains: q, mode: 'insensitive' } },
+        AND: [
+          visibleToViewer(userId, friendIds),
+          {
+            OR: [
+              { name: { contains: q, mode: 'insensitive' } },
+              { address: { contains: q, mode: 'insensitive' } },
+              { favoriteFood: { contains: q, mode: 'insensitive' } },
+            ],
+          },
         ],
       },
       include: placeInclude,

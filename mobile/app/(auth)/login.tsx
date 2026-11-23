@@ -1,24 +1,19 @@
-import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useRef, useState } from 'react';
+import { StyleSheet, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { space } from '@/src/theme';
 import { authAPI } from '@/src/api/auth';
 import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
-import { authStyles as styles } from '@/src/components/AuthForm/styles';
+import { haptics } from '@/src/lib/haptics';
+import { AppText, Button, PressableScale, TextField } from '@/src/components/ui';
+import { AuthScaffold } from '@/src/components/auth/AuthScaffold';
+import { PasswordField } from '@/src/components/auth/PasswordField';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,7 +21,8 @@ export default function LoginScreen() {
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
 
-  const handleLogin = async () => {
+  const login = async () => {
+    if (!canSubmit) return;
     setLoading(true);
     setError(null);
     try {
@@ -34,6 +30,7 @@ export default function LoginScreen() {
       await signIn(token, user);
       router.replace('/map');
     } catch (err) {
+      haptics.warning();
       setError(getErrorMessage(err, 'Login failed'));
     } finally {
       setLoading(false);
@@ -41,52 +38,72 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <MaterialCommunityIcons name="map-marker-radius" size={56} color="#6366f1" style={styles.logo} />
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>See the places your friends love</Text>
+    <AuthScaffold title="Welcome back" subtitle="The places your friends love, together on one calm map.">
+      <TextField
+        icon="mail-outline"
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        accessibilityLabel="Email"
+      />
+      <PasswordField
+        ref={passwordRef}
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="go"
+        onSubmitEditing={login}
+        accessibilityLabel="Password"
+        containerStyle={styles.gap}
+      />
 
-        <View style={styles.row}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
-        </View>
-        <View style={styles.row}>
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="password"
-            onSubmitEditing={canSubmit ? handleLogin : undefined}
-          />
-        </View>
+      {error && (
+        <AppText variant="footnote" tone="danger" style={styles.error} accessibilityLiveRegion="polite">
+          {error}
+        </AppText>
+      )}
 
-        {error && <Text style={styles.error}>{error}</Text>}
+      <Button title="Log In" onPress={login} loading={loading} disabled={!canSubmit} fullWidth haptic style={styles.submit} />
 
-        <TouchableOpacity
-          style={[styles.button, !canSubmit && styles.buttonDisabled]}
-          onPress={handleLogin}
-          disabled={!canSubmit}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log in</Text>}
-        </TouchableOpacity>
-
-        <Text style={styles.switchText}>
-          Don&apos;t have an account?{' '}
-          <Link href="/(auth)/register" replace style={styles.switchLink}>
-            Sign up
-          </Link>
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <View style={styles.switchRow}>
+        <AppText variant="callout" tone="secondary">
+          New to Haritaly?
+        </AppText>
+        <PressableScale onPress={() => router.replace('/(auth)/register')} hitSlop={10} accessibilityRole="link">
+          <AppText variant="calloutMedium" tone="accent">
+            Create an account
+          </AppText>
+        </PressableScale>
+      </View>
+    </AuthScaffold>
   );
 }
+
+const styles = StyleSheet.create({
+  gap: {
+    marginTop: space.sm,
+  },
+  error: {
+    marginTop: space.sm,
+    marginHorizontal: space.xxs,
+  },
+  submit: {
+    marginTop: space.xl,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: space.xl,
+  },
+});
