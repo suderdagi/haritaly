@@ -36,6 +36,8 @@ export interface Place {
   /** Meters from the search center, only set by the nearby endpoint */
   distance?: number;
   isFavorite?: boolean;
+  /** Only the owner can see a private place; friends never do. */
+  isPrivate?: boolean;
 }
 
 export type PlaceSummary =
@@ -62,6 +64,7 @@ export type PlaceInput = {
   notes?: string;
   favoriteFood?: string;
   favoriteDrink?: string;
+  isPrivate?: boolean;
 };
 
 export interface Friend extends User {
