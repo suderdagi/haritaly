@@ -1,49 +1,43 @@
 import React, { useCallback, useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Linking,
-  Platform,
-  Share,
-} from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import MapView from 'react-native-maps';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, radius, screenPadding, space } from '@/src/theme';
 import { placesAPI } from '@/src/api/places';
-import { assetUrl, getErrorMessage } from '@/src/api/client';
+import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
-import { displayName, Place } from '@/src/types';
-import { AISummaryCard } from '@/src/components/AISummaryCard/AISummaryCard';
+import { useUserLocation } from '@/src/store/location';
+import { categoryIcon, categoryLabel, IconName } from '@/src/lib/categories';
+import { distanceInMeters, regionAround } from '@/src/lib/geo';
+import { formatDate, formatDistance } from '@/src/lib/format';
+import { haptics } from '@/src/lib/haptics';
+import { openDirections, openInMaps, sharePlace } from '@/src/lib/maps';
+import { groupIntoSpots } from '@/src/lib/spots';
 import { chooseOption } from '@/src/utils/chooseOption';
 import { confirmBlock, reportPlace } from '@/src/utils/safety';
-
-const mapsLink = (place: Place) =>
-  `https://www.google.com/maps/search/?api=1&query=${place.latitude},${place.longitude}`;
+import { displayName, Place } from '@/src/types';
+import { AppText, Avatar, Button, EmptyState, IconButton, PressableScale, RatingStars, Tag } from '@/src/components/ui';
+import { PhotoCarousel } from '@/src/components/place/PhotoGallery';
+import { AISummaryCard } from '@/src/components/AISummaryCard/AISummaryCard';
+import { SpotMarker } from '@/src/components/map/Markers';
 
 export default function PlaceDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ placeId: string }>();
   const placeId = Number(params.placeId);
-  const { user: currentUser } = useAuth();
+  const { user: me } = useAuth();
+  const { status: locationStatus, coords } = useUserLocation();
 
   const [place, setPlace] = useState<Place | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingFavorite, setSavingFavorite] = useState(false);
 
-  const isOwner = place !== null && place.userId === currentUser?.id;
-  const photos = place?.photos ?? [];
-
   // Reload whenever the screen gets focus, e.g. after coming back from editing
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      setLoading(true);
       placesAPI
         .getPlaceDetails(placeId)
         .then((data) => {
@@ -60,44 +54,13 @@ export default function PlaceDetailsScreen() {
     }, [placeId])
   );
 
-  const handleEdit = () => {
-    router.push({ pathname: '/add-place', params: { placeId } });
-  };
+  const isOwner = place !== null && place.userId === me?.id;
 
-  const handleDelete = () => {
-    Alert.alert('Delete place', 'Are you sure? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await placesAPI.deletePlace(placeId);
-            router.back();
-          } catch (err) {
-            Alert.alert('Error', getErrorMessage(err, 'Failed to delete place'));
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleOpenInMaps = () => {
-    if (!place) return;
-    const label = encodeURIComponent(place.name);
-    const nativeUrl = Platform.select({
-      ios: `maps:0,0?q=${label}@${place.latitude},${place.longitude}`,
-      android: `geo:0,0?q=${place.latitude},${place.longitude}(${label})`,
-    });
-
-    Linking.openURL(nativeUrl ?? mapsLink(place)).catch(() => Linking.openURL(mapsLink(place)));
-  };
-
-  const handleToggleFavorite = async () => {
+  const toggleFavorite = async () => {
     if (!place || savingFavorite) return;
     const next = !place.isFavorite;
-
-    // Optimistic update, rolled back if the request fails
+    haptics.selection();
+    // Optimistic, rolled back if the request fails
     setPlace({ ...place, isFavorite: next });
     setSavingFavorite(true);
     try {
@@ -105,250 +68,254 @@ export default function PlaceDetailsScreen() {
       else await placesAPI.removeFavorite(place.id);
     } catch (err) {
       setPlace({ ...place, isFavorite: !next });
-      Alert.alert('Error', getErrorMessage(err, 'Could not update favorites'));
+      Alert.alert('Could not update favorites', getErrorMessage(err, 'Please try again.'));
     } finally {
       setSavingFavorite(false);
     }
   };
 
-  // Friends' places can be reported, and the friend who saved them blocked
-  const handleSafetyMenu = () => {
-    if (!place?.user) return;
-    const owner = place.user;
-    chooseOption(place.name, [
-      { label: 'Report this place', onPress: () => reportPlace(place.id) },
+  const confirmDelete = () => {
+    if (!place) return;
+    Alert.alert(`Delete ${place.name}?`, 'The place and its photos are removed for you and your friends. This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        label: `Block ${displayName(owner)}`,
-        destructive: true,
-        onPress: () => confirmBlock(owner, () => router.back()),
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await placesAPI.deletePlace(place.id);
+            haptics.success();
+            router.back();
+          } catch (err) {
+            Alert.alert('Could not delete', getErrorMessage(err, 'Please try again.'));
+          }
+        },
       },
     ]);
   };
 
-  const handleShare = async () => {
+  // Your own place: edit or delete. A friend's place: report it, or block the friend.
+  const showMenu = () => {
     if (!place) return;
-    await Share.share({
-      title: place.name,
-      message: [place.name, place.address, mapsLink(place)].filter(Boolean).join('\n'),
-    });
-  };
-
-  const renderStars = (rating?: number | string | null) => {
-    const ratingValue = Number(rating ?? 0);
-    if (!Number.isFinite(ratingValue) || ratingValue === 0) return null;
-
-    const stars = [];
-    const fullStars = Math.floor(ratingValue);
-    const hasHalfStar = ratingValue % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(
-        <MaterialCommunityIcons key={i} name="star" size={16} color="#FFD700" />
-      );
+    if (isOwner) {
+      chooseOption(place.name, [
+        { label: 'Edit place', onPress: () => router.push({ pathname: '/add-place', params: { placeId: place.id } }) },
+        { label: 'Delete place', destructive: true, onPress: confirmDelete },
+      ]);
+      return;
     }
-
-    if (hasHalfStar) {
-      stars.push(
-        <MaterialCommunityIcons
-          key="half"
-          name="star-half-full"
-          size={16}
-          color="#FFD700"
-        />
-      );
-    }
-
-    const emptyStars = 5 - Math.ceil(ratingValue);
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(
-        <MaterialCommunityIcons
-          key={`empty-${i}`}
-          name="star-outline"
-          size={16}
-          color="#FFD700"
-        />
-      );
-    }
-
-    return stars;
+    const owner = place.user;
+    chooseOption(place.name, [
+      { label: 'Report this place', onPress: () => reportPlace(place.id) },
+      ...(owner
+        ? [{ label: `Block ${displayName(owner)}`, destructive: true, onPress: () => confirmBlock(owner, () => router.back()) }]
+        : []),
+    ]);
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.textSecondary} />
       </View>
     );
   }
 
   if (!place) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error ?? 'Place not found'}</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.center}>
+        <EmptyState
+          icon="location-outline"
+          title="This place isn’t available"
+          message={error ?? 'It may have been deleted or made private.'}
+          actionLabel="Go back"
+          onAction={() => router.back()}
+        />
       </View>
     );
   }
+
+  const photos = place.photos ?? [];
+  const distance = locationStatus === 'granted' && coords ? formatDistance(distanceInMeters(coords, place)) : null;
+  const district = place.address?.split(',').map((s) => s.trim()).filter(Boolean).pop();
+  const [spot] = groupIntoSpots([place], me?.id);
 
   return (
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: place.name,
-          headerRight: isOwner
-            ? undefined
-            : () => (
-                <TouchableOpacity
-                  onPress={handleSafetyMenu}
-                  hitSlop={12}
-                  accessibilityLabel="Report or block"
-                >
-                  <MaterialCommunityIcons name="flag-outline" size={22} color="#6b7280" />
-                </TouchableOpacity>
-              ),
+          headerRight: () => (
+            <Pressable
+              onPress={showMenu}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={isOwner ? 'Edit or delete' : 'Report or block'}
+              style={styles.headerButton}
+            >
+              <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+            </Pressable>
+          ),
         }}
       />
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Photos */}
-        {photos.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.photosContainer}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* Hero: the photos, or a quiet map of where it is */}
+        {photos.length > 0 ? (
+          <PhotoCarousel photos={photos} />
+        ) : (
+          <Pressable
+            onPress={() => openInMaps(place)}
+            accessibilityRole="button"
+            accessibilityLabel={`Map of ${place.name}. Opens in Maps`}
           >
-            {photos.map((photo) => (
-              <Image
-                key={photo.id}
-                source={{ uri: assetUrl(photo.url) }}
-                style={styles.photo}
-                resizeMode="cover"
-              />
-            ))}
-          </ScrollView>
+            <MapView
+              style={styles.mapHero}
+              initialRegion={regionAround(place, 900)}
+              mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              showsPointsOfInterest={false}
+              toolbarEnabled={false}
+              liteMode
+              pointerEvents="none"
+            >
+              <SpotMarker spot={spot} selected favorite={false} onPress={() => {}} />
+            </MapView>
+          </Pressable>
         )}
 
-        {/* Header / Basic Info */}
-        <View style={[styles.section, styles.headerSection]}>
-          <View style={styles.headerRow}>
-            <View style={styles.titleCol}>
-              <Text style={styles.name}>{place.name}</Text>
-                {Number(place.rating ?? 0) > 0 ? (
-                  <View style={styles.ratingContainer}>
-                    {renderStars(place.rating)}
-                    <Text style={styles.ratingText}>{Number(place.rating).toFixed(1)}</Text>
-                  </View>
-                ) : null}
-                <View style={styles.metaRow}>
-                  {place.category ? (
-                    <View style={styles.badge}><Text style={styles.badgeText}>{place.category}</Text></View>
-                  ) : null}
-                  {/* Last part of the address, usually the district or city */}
-                  {place.address ? (
-                    <>
-                      <MaterialCommunityIcons name="map-marker" size={16} color="#ec4899" style={{ marginLeft: 8 }} />
-                      <Text style={styles.smallMuted}>{place.address.split(',').pop()?.trim()}</Text>
-                    </>
-                  ) : null}
-                </View>
-                {/* Recommendation info */}
-                {!isOwner && place.user ? (
-                  <Text style={styles.recommendedText}>Recommended by {displayName(place.user)}</Text>
-                ) : null}
+        <View style={styles.body}>
+          {/* Title block */}
+          <View style={styles.kicker}>
+            <Ionicons name={categoryIcon(place.category)} size={13} color={colors.textSecondary} />
+            <AppText variant="overline" tone="secondary">
+              {[categoryLabel(place.category), district].filter(Boolean).join('  ·  ')}
+            </AppText>
+          </View>
+          <AppText variant="largeTitle" style={styles.title} accessibilityRole="header">
+            {place.name}
+          </AppText>
+
+          <View style={styles.metaRow}>
+            <RatingStars value={place.rating} size={15} />
+            {distance && (
+              <AppText variant="subhead" tone="secondary">
+                {Number(place.rating) > 0 ? '·  ' : ''}
+                {distance} away
+              </AppText>
+            )}
+            {isOwner && place.isPrivate ? <Tag label="Only you" icon="lock-closed" /> : null}
+          </View>
+
+          {/* Who it comes from */}
+          <PressableScale
+            disabled={isOwner || !place.user}
+            onPress={() => place.user && router.push({ pathname: '/friend', params: { userId: place.user.id } })}
+            scaleTo={0.985}
+            style={styles.byline}
+            accessibilityRole={isOwner ? undefined : 'button'}
+          >
+            {place.user && <Avatar user={place.user} size={36} />}
+            <View style={styles.bylineText}>
+              <AppText variant="subheadMedium">
+                {isOwner ? 'Saved by you' : `Recommended by ${place.user ? displayName(place.user) : 'a friend'}`}
+              </AppText>
+              <AppText variant="footnote" tone="tertiary">
+                {formatDate(place.createdAt)}
+              </AppText>
             </View>
+            {!isOwner && <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />}
+          </PressableScale>
 
-            <View style={styles.actionsCol}>
-              <TouchableOpacity
-                onPress={handleToggleFavorite}
-                style={[styles.iconButton, place.isFavorite && styles.iconButtonActive]}
-                accessibilityLabel={place.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <MaterialCommunityIcons
-                  name={place.isFavorite ? 'heart' : 'heart-outline'}
-                  size={20}
-                  color={place.isFavorite ? '#fff' : '#ec4899'}
-                />
-              </TouchableOpacity>
-              {isOwner && (
-                <>
-                  <TouchableOpacity onPress={handleEdit} style={styles.iconButton} accessibilityLabel="Edit place">
-                    <MaterialCommunityIcons name="pencil" size={20} color="#6b7280" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleDelete} style={styles.iconButtonDanger} accessibilityLabel="Delete place">
-                    <MaterialCommunityIcons name="delete" size={20} color="#fff" />
-                  </TouchableOpacity>
-                </>
-              )}
+          {/* Actions */}
+          <View style={styles.actions}>
+            <Button title="Directions" icon="navigate" onPress={() => openDirections(place)} style={styles.directions} haptic />
+            <IconButton
+              icon={place.isFavorite ? 'heart' : 'heart-outline'}
+              accessibilityLabel={place.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              onPress={toggleFavorite}
+              size={54}
+              iconSize={23}
+              color={place.isFavorite ? colors.favorite : colors.text}
+              background={place.isFavorite ? colors.favoriteSoft : undefined}
+            />
+            <IconButton icon="share-outline" accessibilityLabel="Share" onPress={() => sharePlace(place)} size={54} iconSize={22} />
+          </View>
+
+          {/* Notes */}
+          {place.notes ? (
+            <View style={styles.section}>
+              <AppText variant="overline" tone="secondary" style={styles.sectionTitle}>
+                {isOwner ? 'Your notes' : 'Notes'}
+              </AppText>
+              <View style={styles.quote}>
+                <AppText variant="body" style={styles.quoteText}>
+                  {place.notes}
+                </AppText>
+              </View>
             </View>
-          </View>
+          ) : null}
 
-          {/* Action buttons */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleOpenInMaps}>
-              <MaterialCommunityIcons name="map" size={18} color="#fff" />
-              <Text style={styles.actionBtnText}>Open in Maps</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtnOutline} onPress={handleShare}>
-              <MaterialCommunityIcons name="share-variant" size={18} color="#6b7280" />
-              <Text style={styles.actionBtnOutlineText}>Share</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* AI summary of the user's and friends' entries for this place */}
-        <AISummaryCard placeId={place.id} />
-
-        {/* Favorites: only shown when the place has at least one */}
-        {place.favoriteFood || place.favoriteDrink ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Favorites</Text>
-            {place.favoriteFood ? (
-              <View style={styles.favoriteRow}>
-                <MaterialCommunityIcons name="food" size={20} color="#FF6B35" />
-                <Text style={styles.favoriteText}>{place.favoriteFood}</Text>
+          {/* What to order */}
+          {place.favoriteFood || place.favoriteDrink ? (
+            <View style={styles.section}>
+              <AppText variant="overline" tone="secondary" style={styles.sectionTitle}>
+                What to order
+              </AppText>
+              <View style={styles.orderRow}>
+                {place.favoriteFood ? <OrderCard icon="restaurant-outline" label="Dish" value={place.favoriteFood} /> : null}
+                {place.favoriteDrink ? <OrderCard icon="cafe-outline" label="Drink" value={place.favoriteDrink} /> : null}
               </View>
-            ) : null}
-            {place.favoriteDrink ? (
-              <View style={styles.favoriteRow}>
-                <MaterialCommunityIcons name="cup" size={20} color="#4A90E2" />
-                <Text style={styles.favoriteText}>{place.favoriteDrink}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
+            </View>
+          ) : null}
 
-        {/* Notes */}
-        {place.notes ? (
+          <AISummaryCard placeId={place.id} />
+
+          {/* Where it is */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <Text style={styles.notes}>{place.notes}</Text>
-          </View>
-        ) : null}
-
-        {/* Metadata */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details</Text>
-
-          <View style={styles.metadataRow}>
-            <Text style={styles.metadataLabel}>Added:</Text>
-            <Text style={styles.metadataValue}>
-              {new Date(place.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
-
-          <View style={styles.metadataRow}>
-            <Text style={styles.metadataLabel}>Address:</Text>
-            <Text style={styles.metadataValue}>{place.address || 'No address added.'}</Text>
+            <AppText variant="overline" tone="secondary" style={styles.sectionTitle}>
+              Location
+            </AppText>
+            <PressableScale onPress={() => openInMaps(place)} scaleTo={0.985} style={styles.locationCard} accessibilityRole="button">
+              <View style={styles.locationIcon}>
+                <Ionicons name="location-outline" size={18} color={colors.text} />
+              </View>
+              <View style={styles.locationText}>
+                <AppText variant="body">{place.address || 'Pinned on the map'}</AppText>
+                <AppText variant="footnote" tone="tertiary" selectable>
+                  {place.latitude.toFixed(5)}, {place.longitude.toFixed(5)}
+                </AppText>
+              </View>
+              <AppText variant="subheadMedium" tone="accent">
+                Open in Maps
+              </AppText>
+            </PressableScale>
           </View>
 
-          <View style={styles.metadataRow}>
-            <Text style={styles.metadataLabel}>Coordinates:</Text>
-            <Text style={styles.metadataValue}>{place.latitude.toFixed(6)} · {place.longitude.toFixed(6)}</Text>
-          </View>
+          {!isOwner && (
+            <PressableScale onPress={showMenu} style={styles.report} accessibilityRole="button">
+              <Ionicons name="flag-outline" size={14} color={colors.textTertiary} />
+              <AppText variant="footnote" tone="tertiary">
+                Report this place or block {place.user ? displayName(place.user) : 'the person who saved it'}
+              </AppText>
+            </PressableScale>
+          )}
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+function OrderCard({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return (
+    <View style={styles.orderCard}>
+      <Ionicons name={icon} size={18} color={colors.rating} />
+      <AppText variant="caption" tone="tertiary" style={styles.orderLabel}>
+        {label}
+      </AppText>
+      <AppText variant="headline">{value}</AppText>
     </View>
   );
 }
@@ -356,237 +323,136 @@ export default function PlaceDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
-  loadingContainer: {
+  center: {
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: colors.background,
   },
-  errorContainer: {
-    flex: 1,
+  headerButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
-  errorText: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 20,
+  scroll: {
+    paddingBottom: space.xxxl,
   },
-  backButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+  mapHero: {
+    height: 230,
   },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+  body: {
+    marginTop: -26,
+    paddingTop: space.xl,
+    paddingHorizontal: screenPadding,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  photosContainer: {
-    height: 200,
-    marginBottom: 16,
-  },
-  photo: {
-    width: 300,
-    height: 200,
-    marginRight: 8,
-    borderRadius: 12,
-  },
-  section: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  header: {
-    marginBottom: 16,
-  },
-  titleContainer: {
-    marginBottom: 8,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  category: {
-    fontSize: 16,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  ratingContainer: {
+  kicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    marginBottom: 2,
+    gap: 6,
   },
-  ratingText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  address: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
-  favoriteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  favoriteText: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  notes: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-  },
-  metadataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  metadataLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  metadataValue: {
-    fontSize: 14,
-    color: '#333',
-  },
-  /* New header & action styles */
-  headerSection: {
-    paddingBottom: 8,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  titleCol: {
-    flex: 1,
-    paddingRight: 8,
+  title: {
+    marginTop: space.xs,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    flexWrap: 'wrap',
+    gap: space.xs,
+    marginTop: space.sm,
   },
-  smallMuted: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    marginLeft: 6,
-  },
-  actionsCol: {
+  byline: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: space.sm,
+    marginTop: space.lg,
+    paddingVertical: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
   },
-  iconButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 8,
-    borderRadius: 10,
-    marginLeft: 8,
+  bylineText: {
+    flex: 1,
+    gap: 1,
   },
-  iconButtonActive: {
-    backgroundColor: '#ec4899',
-    borderColor: '#ec4899',
-  },
-  iconButtonDanger: {
-    backgroundColor: '#FF3B30',
-    padding: 8,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  actionBtn: {
+  actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ec4899',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    gap: space.sm,
+    marginTop: space.lg,
   },
-  actionBtnText: {
-    color: '#fff',
-    marginLeft: 8,
-    fontWeight: '600',
+  directions: {
+    flex: 1,
   },
-  actionBtnOutline: {
+  section: {
+    marginTop: space.xxl,
+  },
+  sectionTitle: {
+    marginBottom: space.sm,
+  },
+  quote: {
+    paddingLeft: space.md,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.rating,
+  },
+  quoteText: {
+    fontSize: 17,
+    lineHeight: 26,
+  },
+  orderRow: {
+    flexDirection: 'row',
+    gap: space.sm,
+  },
+  orderCard: {
+    flex: 1,
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    gap: 2,
+  },
+  orderLabel: {
+    marginTop: space.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
   },
-  actionBtnOutlineText: {
-    color: '#6b7280',
-    marginLeft: 8,
-    fontWeight: '600',
+  locationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    backgroundColor: colors.fill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  badge: {
-    backgroundColor: '#FCE7F3',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+  locationText: {
+    flex: 1,
+    gap: 2,
   },
-  badgeText: {
-    color: '#9f1239',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  recommendedText: {
-    marginTop: 6,
-    color: '#6b7280',
-    fontSize: 14,
-    fontWeight: '500',
+  report: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: space.xxl,
+    paddingVertical: space.sm,
   },
 });

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Alert } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, radius, space } from '@/src/theme';
+import { AppText } from '../ui/AppText';
+import { Button } from '../ui/Button';
 import { placesAPI } from '@/src/api/places';
 import { getErrorMessage } from '@/src/api/client';
 import { getAppConfig } from '@/src/api/config';
@@ -65,46 +68,61 @@ export function AISummaryCard({ placeId }: { placeId: number }) {
   return (
     <View style={styles.card}>
       <View style={styles.titleRow}>
-        <MaterialCommunityIcons name="creation" size={20} color="#6366f1" />
-        <Text style={styles.title}>What friends say</Text>
+        <View style={styles.badge}>
+          <Ionicons name="sparkles" size={14} color={colors.social} />
+        </View>
+        <AppText variant="headline">What friends say</AppText>
       </View>
 
       {loading ? (
-        <ActivityIndicator color="#6366f1" style={styles.spinner} />
+        <ActivityIndicator color={colors.textSecondary} style={styles.spinner} />
       ) : summary?.status === 'OK' ? (
         <>
-          <Text style={styles.summary}>{summary.summary}</Text>
+          <AppText variant="body" style={styles.summary}>
+            {summary.summary}
+          </AppText>
 
           {summary.highlights.map((item) => (
             <View key={item} style={styles.row}>
-              <MaterialCommunityIcons name="check-circle-outline" size={16} color="#10b981" />
-              <Text style={styles.rowText}>{item}</Text>
+              <Ionicons name="checkmark" size={16} color={colors.accent} />
+              <AppText variant="callout" style={styles.rowText}>
+                {item}
+              </AppText>
             </View>
           ))}
 
           {summary.mustTry.length > 0 && (
-            <Text style={styles.mustTry}>Must try: {summary.mustTry.join(', ')}</Text>
+            <AppText variant="calloutMedium" style={styles.mustTry}>
+              Must try: {summary.mustTry.join(', ')}
+            </AppText>
           )}
 
-          <Text style={styles.footnote}>
+          <AppText variant="footnote" tone="tertiary" style={styles.footnote}>
             AI summary of {summary.mentionCount} saved {summary.mentionCount === 1 ? 'entry' : 'entries'}
-          </Text>
+          </AppText>
         </>
       ) : summary?.status === 'NOT_ENOUGH_DATA' ? (
-        <Text style={styles.muted}>
+        <AppText variant="callout" tone="secondary">
           Not enough notes or ratings yet. Add yours, or wait for friends to save this place.
-        </Text>
+        </AppText>
       ) : (
         <>
-          <Text style={styles.muted}>
-            Get a short summary of the ratings, notes and favorites you and your friends saved here, written by
-            OpenAI.
-          </Text>
-          {error && <Text style={styles.error}>{error}</Text>}
-          <TouchableOpacity style={styles.button} onPress={handlePress} accessibilityLabel="Summarize with AI">
-            <MaterialCommunityIcons name="creation" size={18} color="#fff" />
-            <Text style={styles.buttonText}>{error ? 'Try again' : 'Summarize with AI'}</Text>
-          </TouchableOpacity>
+          <AppText variant="callout" tone="secondary">
+            A short summary of the ratings, notes and favorites you and your friends saved here, written by OpenAI.
+          </AppText>
+          {error && (
+            <AppText variant="footnote" tone="danger" style={styles.error}>
+              {error}
+            </AppText>
+          )}
+          <Button
+            title={error ? 'Try again' : 'Summarize with AI'}
+            icon="sparkles"
+            variant="secondary"
+            size="sm"
+            onPress={handlePress}
+            style={styles.button}
+          />
         </>
       )}
     </View>
@@ -113,36 +131,29 @@ export function AISummaryCard({ placeId }: { placeId: number }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-      android: { elevation: 3 },
-    }),
+    marginTop: space.xxl,
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  title: { fontSize: 18, fontWeight: '600', color: '#333' },
-  spinner: { marginVertical: 12 },
-  summary: { fontSize: 16, color: '#333', lineHeight: 24, marginBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  rowText: { fontSize: 15, color: '#333', flex: 1 },
-  mustTry: { fontSize: 15, color: '#333', fontWeight: '600', marginTop: 6 },
-  footnote: { fontSize: 12, color: '#9CA3AF', marginTop: 10 },
-  muted: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
-  error: { fontSize: 14, color: '#FF3B30', marginTop: 8 },
-  button: {
-    flexDirection: 'row',
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginBottom: space.sm },
+  badge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.socialSoft,
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 8,
-    backgroundColor: '#6366f1',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginTop: 12,
+    justifyContent: 'center',
   },
-  buttonText: { color: '#fff', fontWeight: '600' },
+  spinner: { marginVertical: space.sm },
+  summary: { marginBottom: space.xs },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs, marginTop: space.xxs },
+  rowText: { flex: 1 },
+  mustTry: { marginTop: space.sm },
+  footnote: { marginTop: space.sm },
+  error: { marginTop: space.xs },
+  button: { alignSelf: 'flex-start', marginTop: space.sm },
 });
