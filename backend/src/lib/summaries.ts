@@ -108,12 +108,13 @@ export async function findMentions(
   viewerId: number,
   place: { name: string; latitude: number; longitude: number }
 ): Promise<Mention[]> {
-  const authorIds = [viewerId, ...(await getFriendIds(viewerId))];
+  const friendIds = await getFriendIds(viewerId);
   const box = boundingBox(place, MATCH_RADIUS_M);
 
   const candidates = await prisma.place.findMany({
     where: {
-      userId: { in: authorIds },
+      // The viewer's own entries, and friends' entries that are not private
+      OR: [{ userId: viewerId }, { userId: { in: friendIds }, isPrivate: false }],
       latitude: { gte: box.minLat, lte: box.maxLat },
       longitude: { gte: box.minLng, lte: box.maxLng },
     },

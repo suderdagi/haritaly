@@ -16,6 +16,9 @@ import * as accept from '@/src/app/api/friends/[id]/accept/route';
 import * as favorite from '@/src/app/api/places/[id]/favorite/route';
 import * as favorites from '@/src/app/api/favorites/route';
 import * as userSearch from '@/src/app/api/users/search/route';
+import * as search from '@/src/app/api/places/search/route';
+import * as userPlaces from '@/src/app/api/users/[id]/places/route';
+import * as userProfile from '@/src/app/api/users/[id]/route';
 
 process.env.JWT_SECRET ??= 'test-secret';
 
@@ -169,5 +172,102 @@ describe('places', () => {
     await favorite.DELETE(request(`/api/places/${placeId}/favorite`, { method: 'DELETE', token: sude.token }), params(placeId));
     res = await favorites.GET(request('/api/favorites', { token: sude.token }));
     expect((await res.json()).data).toHaveLength(0);
+  });
+});
+
+describe('private places', () => {
+  let privateId: number;
+  let sharedId: number;
+
+  const create = async (name: string, isPrivate: boolean) => {
+    const res = await places.POST(
+      request('/api/places', {
+        method: 'POST',
+        token: ali.token,
+        body: { name, category: 'Park', latitude: 40.9815, longitude: 29.026, isPrivate },
+      })
+    );
+    expect(res.status).toBe(201);
+    return (await res.json()).data as { id: number; isPrivate: boolean };
+  };
+
+  it('saves a private place that only its owner can open', async () => {
+    const created = await create('Secret Garden', true);
+    expect(created.isPrivate).toBe(true);
+    privateId = created.id;
+
+    let res: Response = await place.GET(request(`/api/places/${privateId}`, { token: ali.token }), params(privateId));
+    expect(res.status).toBe(200);
+
+    // To a friend it looks like it does not exist
+    res = await place.GET(request(`/api/places/${privateId}`, { token: sude.token }), params(privateId));
+    expect(res.status).toBe(404);
+  });
+
+  it("keeps private places out of friends' nearby results, search and favorites", async () => {
+    let res: Response = await nearby.GET(
+      request('/api/places/nearby?lat=40.99&lng=29.03&radius=3000', { token: sude.token })
+    );
+    expect((await res.json()).data.map((p: { id: number }) => p.id)).not.toContain(privateId);
+
+    res = await search.GET(request('/api/places/search?q=secret', { token: sude.token }));
+    expect((await res.json()).data).toHaveLength(0);
+    res = await search.GET(request('/api/places/search?q=secret', { token: ali.token }));
+    expect((await res.json()).data).toHaveLength(1);
+
+    res = await favorite.POST(
+      request(`/api/places/${privateId}/favorite`, { method: 'POST', token: sude.token }),
+      params(privateId)
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("drops a place from friends' favorites when its owner makes it private", async () => {
+    sharedId = (await create('Yogurtcu Park', false)).id;
+    await favorite.POST(request(`/api/places/${sharedId}/favorite`, { method: 'POST', token: sude.token }), params(sharedId));
+    let res: Response = await favorites.GET(request('/api/favorites', { token: sude.token }));
+    expect((await res.json()).data.map((p: { id: number }) => p.id)).toContain(sharedId);
+
+    res = await place.PUT(
+      request(`/api/places/${sharedId}`, { method: 'PUT', token: ali.token, body: { isPrivate: true } }),
+      params(sharedId)
+    );
+    expect(res.status).toBe(200);
+
+    res = await favorites.GET(request('/api/favorites', { token: sude.token }));
+    expect((await res.json()).data.map((p: { id: number }) => p.id)).not.toContain(sharedId);
+
+    // Sharing it again brings it back
+    await place.PUT(
+      request(`/api/places/${sharedId}`, { method: 'PUT', token: ali.token, body: { isPrivate: false } }),
+      params(sharedId)
+    );
+    res = await favorites.GET(request('/api/favorites', { token: sude.token }));
+    expect((await res.json()).data.map((p: { id: number }) => p.id)).toContain(sharedId);
+  });
+});
+
+describe('friend profiles', () => {
+  it("lists a friend's shared places and counts only those", async () => {
+    let res: Response = await userPlaces.GET(request(`/api/users/${ali.id}/places`, { token: sude.token }), params(ali.id));
+    expect(res.status).toBe(200);
+    const shared = (await res.json()).data as { isPrivate: boolean }[];
+    expect(shared.length).toBeGreaterThan(0);
+    expect(shared.every((p) => !p.isPrivate)).toBe(true);
+
+    res = await userProfile.GET(request(`/api/users/${ali.id}`, { token: sude.token }), params(ali.id));
+    expect((await res.json()).data._count.places).toBe(shared.length);
+  });
+
+  it('shows all of your own places, private ones included', async () => {
+    const res = await userPlaces.GET(request(`/api/users/${ali.id}/places`, { token: ali.token }), params(ali.id));
+    const own = (await res.json()).data as { isPrivate: boolean }[];
+    expect(own.some((p) => p.isPrivate)).toBe(true);
+  });
+
+  it('refuses people who are not friends', async () => {
+    const zeynep = await signUp('zeynep@test.com', 'Zeynep');
+    const res = await userPlaces.GET(request(`/api/users/${ali.id}/places`, { token: zeynep.token }), params(ali.id));
+    expect(res.status).toBe(403);
   });
 });

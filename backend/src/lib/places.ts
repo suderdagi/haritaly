@@ -3,6 +3,13 @@ import { publicUserSelect } from './selects';
 import { areFriends } from './friends';
 import { AuthorizationError, NotFoundError } from './errors';
 
+/** Prisma filter for places a viewer may see: their own, and their friends' shared (not private) ones. */
+export function visibleToViewer(viewerId: number, friendIds: number[]) {
+  return {
+    OR: [{ userId: viewerId }, { userId: { in: friendIds }, isPrivate: false }],
+  };
+}
+
 export const placeInclude = {
   photos: true,
   user: { select: publicUserSelect },
@@ -16,8 +23,14 @@ export async function getVisiblePlace(viewerId: number, placeId: number) {
     throw new NotFoundError('Place not found');
   }
 
-  if (place.userId !== viewerId && !(await areFriends(viewerId, place.userId))) {
-    throw new AuthorizationError('You can only view places saved by you or your friends');
+  if (place.userId !== viewerId) {
+    // A private place looks the same as a missing one to everybody but its owner
+    if (place.isPrivate) {
+      throw new NotFoundError('Place not found');
+    }
+    if (!(await areFriends(viewerId, place.userId))) {
+      throw new AuthorizationError('You can only view places saved by you or your friends');
+    }
   }
 
   return place;
