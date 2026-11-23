@@ -145,7 +145,7 @@ export default function ProfileScreen() {
               icon="navigate-outline"
               tint="accent"
               title="Location"
-              subtitle="Only used on this phone, never shown to friends"
+              subtitle="Never shared with friends"
               value={locationValue}
               onPress={() => (locationStatus === 'undetermined' ? requestLocation() : Linking.openSettings())}
               accessibilityHint={locationStatus === 'undetermined' ? 'Asks for location access' : 'Opens Settings'}
