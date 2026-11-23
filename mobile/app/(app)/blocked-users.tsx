@@ -1,21 +1,28 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, screenPadding, space } from '@/src/theme';
 import { usersAPI } from '@/src/api/users';
 import { getErrorMessage } from '@/src/api/client';
-import { Avatar } from '@/src/components/Avatar/Avatar';
+import { formatDate } from '@/src/lib/format';
+import { haptics } from '@/src/lib/haptics';
 import { BlockedUser, displayName } from '@/src/types';
+import { AppText, Avatar, Button, EmptyState, ListGroup, ListRow, SkeletonRow } from '@/src/components/ui';
+
+const AVATAR = 40;
 
 export default function BlockedUsersScreen() {
   const [users, setUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       setUsers(await usersAPI.getBlocked());
-    } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, 'Could not load blocked users'));
+      setFailed(false);
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -27,20 +34,24 @@ export default function BlockedUsersScreen() {
     }, [load])
   );
 
-  const unblock = (user: BlockedUser) => {
+  const unblock = (person: BlockedUser) => {
     Alert.alert(
-      `Unblock ${displayName(user)}?`,
-      'They will be able to find you and send you a friend request again. Your friendship is not restored.',
+      `Unblock ${displayName(person)}?`,
+      'They will be able to find you and send you a friend request again. You won’t become friends automatically.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Unblock',
           onPress: async () => {
+            setBusy(person.id);
             try {
-              await usersAPI.unblock(user.id);
-              setUsers((prev) => prev.filter((u) => u.id !== user.id));
+              await usersAPI.unblock(person.id);
+              haptics.success();
+              setUsers((prev) => prev.filter((u) => u.id !== person.id));
             } catch (error) {
-              Alert.alert('Error', getErrorMessage(error, 'Could not unblock this user'));
+              Alert.alert('Couldn’t unblock', getErrorMessage(error, 'Please try again.'));
+            } finally {
+              setBusy(null);
             }
           },
         },
@@ -48,92 +59,74 @@ export default function BlockedUsersScreen() {
     );
   };
 
-  if (loading) {
-    return <ActivityIndicator style={{ marginTop: 48 }} size="large" color="#6366f1" />;
-  }
-
   return (
-    <FlatList
-      style={styles.container}
-      contentContainerStyle={users.length === 0 && styles.emptyContainer}
-      data={users}
-      keyExtractor={(item) => String(item.id)}
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <MaterialCommunityIcons name="account-cancel-outline" size={48} color="#d1d5db" />
-          <Text style={styles.emptyTitle}>No blocked users</Text>
-          <Text style={styles.emptyText}>
-            People you block can't see your places, send you requests or find you in search.
-          </Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <Avatar user={item} />
-          <Text style={styles.name}>{displayName(item)}</Text>
-          <TouchableOpacity style={styles.unblockButton} onPress={() => unblock(item)}>
-            <Text style={styles.unblockText}>Unblock</Text>
-          </TouchableOpacity>
-        </View>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <AppText variant="callout" tone="secondary" style={styles.intro}>
+        Blocked people can’t see your places, send you friend requests or find you in search. They aren’t told
+        that you blocked them.
+      </AppText>
+
+      {loading ? (
+        <ListGroup separatorInset={space.md + AVATAR + space.sm}>
+          {[0, 1].map((i) => (
+            <SkeletonRow key={i} avatar={AVATAR} />
+          ))}
+        </ListGroup>
+      ) : failed ? (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn’t load this list"
+          message="Check your connection and try again."
+          actionLabel="Try again"
+          onAction={() => {
+            setLoading(true);
+            load();
+          }}
+        />
+      ) : users.length === 0 ? (
+        <EmptyState
+          icon="shield-checkmark-outline"
+          tint="accent"
+          title="No one is blocked"
+          message="If someone bothers you, open their profile or one of their places and choose Block."
+        />
+      ) : (
+        <ListGroup separatorInset={space.md + AVATAR + space.sm}>
+          {users.map((person) => (
+            <ListRow
+              key={person.id}
+              title={displayName(person)}
+              subtitle={`Blocked ${formatDate(person.blockedAt) ?? ''}`.trim()}
+              leading={<Avatar user={person} size={AVATAR} />}
+              trailing={
+                <Button
+                  title="Unblock"
+                  size="sm"
+                  variant="secondary"
+                  loading={busy === person.id}
+                  onPress={() => unblock(person)}
+                />
+              }
+            />
+          ))}
+        </ListGroup>
       )}
-    />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-    paddingTop: 12,
+    backgroundColor: colors.background,
   },
-  emptyContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
+  content: {
+    paddingHorizontal: screenPadding,
+    paddingBottom: space.xxxl,
   },
-  empty: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-  },
-  name: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  unblockButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  unblockText: {
-    color: '#374151',
-    fontWeight: '600',
-    fontSize: 13,
+  intro: {
+    marginTop: space.xs,
+    marginBottom: space.lg,
+    marginHorizontal: space.xxs,
   },
 });

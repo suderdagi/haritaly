@@ -1,14 +1,21 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, RefreshControl, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { colors, screenPadding, space } from '@/src/theme';
 import { placesAPI } from '@/src/api/places';
 import { useAuth } from '@/src/store/auth';
-import { displayName, Place } from '@/src/types';
+import { useUserLocation } from '@/src/store/location';
+import { distanceInMeters } from '@/src/lib/geo';
+import { plural } from '@/src/lib/format';
+import { Place } from '@/src/types';
+import { EmptyState, LargeTitle, ScreenHeader, SkeletonRow, useScrollTitle } from '@/src/components/ui';
+import { PlaceRow } from '@/src/components/place/PlaceRow';
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { status: locationStatus, coords } = useUserLocation();
+  const { scrollY, onScroll } = useScrollTitle();
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,126 +39,92 @@ export default function FavoritesScreen() {
     }, [load])
   );
 
-  if (loading) {
-    return <ActivityIndicator style={{ marginTop: 48 }} size="large" color="#6366f1" />;
-  }
+  const here = locationStatus === 'granted' ? coords : null;
 
   return (
-    <FlatList
-      style={styles.container}
-      contentContainerStyle={places.length === 0 && styles.emptyContainer}
-      data={places}
-      keyExtractor={(item) => String(item.id)}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            load();
-          }}
-        />
-      }
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <MaterialCommunityIcons name={error ? 'wifi-off' : 'heart-outline'} size={48} color="#d1d5db" />
-          <Text style={styles.emptyTitle}>{error ? 'Could not load favorites' : 'No favorites yet'}</Text>
-          <Text style={styles.emptyText}>
-            {error ? 'Pull down to try again.' : 'Tap the heart on any place to keep it here.'}
-          </Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => router.push({ pathname: '/place-details', params: { placeId: item.id } })}
-        >
-          <View style={styles.icon}>
-            <MaterialCommunityIcons name="map-marker" size={22} color="#ec4899" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {[item.category, item.user && item.userId !== user?.id ? `by ${displayName(item.user)}` : null]
-                .filter(Boolean)
-                .join(' · ') || item.address || 'Saved place'}
-            </Text>
-          </View>
-          {item.rating ? (
-            <View style={styles.rating}>
-              <MaterialCommunityIcons name="star" size={14} color="#f59e0b" />
-              <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+    <View style={styles.container}>
+      <ScreenHeader title="Favorites" scrollY={scrollY} />
+      <Animated.FlatList
+        data={loading ? [] : places}
+        keyExtractor={(item) => String(item.id)}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={colors.textTertiary}
+            onRefresh={() => {
+              setRefreshing(true);
+              load();
+            }}
+          />
+        }
+        ListHeaderComponent={
+          <LargeTitle
+            title="Favorites"
+            subtitle={!loading && places.length > 0 ? `${plural(places.length, 'place')} you love` : undefined}
+          />
+        }
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.skeletons}>
+              {[0, 1, 2, 3].map((i) => (
+                <SkeletonRow key={i} avatar={44} />
+              ))}
             </View>
-          ) : null}
-        </TouchableOpacity>
-      )}
-    />
+          ) : error ? (
+            <EmptyState
+              icon="cloud-offline-outline"
+              title="Couldn’t load favorites"
+              message="Check your connection and pull down to try again."
+            />
+          ) : (
+            <EmptyState
+              icon="heart-outline"
+              tint="favorite"
+              title="Nothing here yet"
+              message="Tap the heart on any place, yours or a friend’s, to keep it close."
+              actionLabel="Explore the map"
+              onAction={() => router.navigate('/map')}
+            />
+          )
+        }
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        renderItem={({ item }) => (
+          <View style={styles.row}>
+            <PlaceRow
+              place={item}
+              isMine={item.userId === user?.id}
+              distance={here ? distanceInMeters(here, item) : null}
+              onPress={() => router.push({ pathname: '/place-details', params: { placeId: item.id } })}
+            />
+          </View>
+        )}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-    paddingTop: 12,
+    backgroundColor: colors.background,
   },
-  emptyContainer: {
+  content: {
+    paddingBottom: space.xxxl,
     flexGrow: 1,
-    justifyContent: 'center',
   },
-  empty: {
-    alignItems: 'center',
-    padding: 32,
+  skeletons: {
+    paddingHorizontal: space.xxs,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 12,
+  row: {
+    paddingHorizontal: screenPadding,
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 14,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-  },
-  icon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fdf2f8',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  name: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  meta: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  rating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  ratingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.hairline,
+    marginLeft: screenPadding + 44 + space.sm,
+    marginRight: screenPadding,
   },
 });

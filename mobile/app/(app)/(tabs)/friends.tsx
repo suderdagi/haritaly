@@ -1,31 +1,42 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  SectionList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ActivityIndicator, Alert, Animated, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, radius, screenPadding, space, type } from '@/src/theme';
 import { friendsAPI } from '@/src/api/friends';
 import { getErrorMessage } from '@/src/api/client';
-import { Avatar } from '@/src/components/Avatar/Avatar';
+import { haptics } from '@/src/lib/haptics';
+import { plural } from '@/src/lib/format';
 import { chooseOption } from '@/src/utils/chooseOption';
 import { confirmBlock } from '@/src/utils/safety';
 import { displayName, Friend, FriendRequest, UserSearchResult } from '@/src/types';
+import {
+  AppText,
+  Avatar,
+  Button,
+  EmptyState,
+  LargeTitle,
+  ListGroup,
+  ListRow,
+  ScreenHeader,
+  SectionHeader,
+  SkeletonRow,
+  Tag,
+  useScrollTitle,
+} from '@/src/components/ui';
 
 const SEARCH_DELAY_MS = 350;
+const AVATAR = 44;
+const ROW_INSET = space.md + AVATAR + space.sm;
 
 export default function FriendsScreen() {
+  const router = useRouter();
+  const { scrollY, onScroll } = useScrollTitle();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [busyRequest, setBusyRequest] = useState<number | null>(null);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<UserSearchResult[]>([]);
@@ -33,14 +44,11 @@ export default function FriendsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [friendList, requestList] = await Promise.all([
-        friendsAPI.list(),
-        friendsAPI.incomingRequests(),
-      ]);
+      const [friendList, requestList] = await Promise.all([friendsAPI.list(), friendsAPI.incomingRequests()]);
       setFriends(friendList);
       setRequests(requestList);
     } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, 'Could not load friends'));
+      Alert.alert('Couldn’t load friends', getErrorMessage(error, 'Please try again.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,318 +61,301 @@ export default function FriendsScreen() {
     }, [load])
   );
 
-  // Debounced user search: only call the API after the user stops typing
+  // Search people only once the user stops typing
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
-
     setSearching(true);
+    let active = true;
     const timer = setTimeout(async () => {
       try {
-        setResults(await friendsAPI.searchUsers(q));
+        const found = await friendsAPI.searchUsers(q);
+        if (active) setResults(found);
       } catch {
-        setResults([]);
+        if (active) setResults([]);
       } finally {
-        setSearching(false);
+        if (active) setSearching(false);
       }
     }, SEARCH_DELAY_MS);
-
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [query]);
 
-  const runAction = async (action: () => Promise<unknown>, errorText: string) => {
+  const run = async (action: () => Promise<unknown>, errorTitle: string) => {
     try {
       await action();
       await load();
+      return true;
     } catch (error) {
-      Alert.alert('Error', getErrorMessage(error, errorText));
+      Alert.alert(errorTitle, getErrorMessage(error, 'Please try again.'));
+      return false;
     }
   };
 
-  const sendRequest = async (user: UserSearchResult) => {
-    await runAction(() => friendsAPI.sendRequest(user.id), 'Could not send request');
-    setResults((prev) =>
-      prev.map((u) =>
-        u.id === user.id ? { ...u, relation: u.relation === 'REQUEST_RECEIVED' ? 'FRIEND' : 'REQUEST_SENT' } : u
-      )
-    );
+  const addFriend = async (person: UserSearchResult) => {
+    haptics.tap();
+    const done = await run(() => friendsAPI.sendRequest(person.id), 'Couldn’t send the request');
+    if (done) {
+      setResults((prev) =>
+        prev.map((u) =>
+          u.id === person.id ? { ...u, relation: u.relation === 'REQUEST_RECEIVED' ? 'FRIEND' : 'REQUEST_SENT' } : u
+        )
+      );
+    }
   };
 
-  const confirmRemove = (friend: Friend) => {
-    Alert.alert('Remove friend', `Remove ${displayName(friend)} from your friends?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => runAction(() => friendsAPI.remove(friend.id), 'Could not remove friend'),
-      },
-    ]);
+  const accept = async (request: FriendRequest) => {
+    setBusyRequest(request.id);
+    if (await run(() => friendsAPI.accept(request.id), 'Couldn’t accept the request')) haptics.success();
+    setBusyRequest(null);
   };
 
-  const showFriendOptions = (friend: Friend) => {
-    chooseOption(displayName(friend), [
-      { label: 'Remove friend', onPress: () => confirmRemove(friend) },
-      { label: 'Block', destructive: true, onPress: () => confirmBlock(friend, load) },
-    ]);
-  };
-
-  // Declining offers blocking too, so nobody can keep sending unwanted requests
-  const declineRequest = (request: FriendRequest) => {
-    chooseOption(`Decline ${displayName(request.sender)}'s request?`, [
-      { label: 'Decline', onPress: () => runAction(() => friendsAPI.reject(request.id), 'Could not reject request') },
-      { label: 'Decline and block', destructive: true, onPress: () => confirmBlock(request.sender, load) },
+  // Declining also offers blocking, so nobody can keep sending unwanted requests
+  const decline = (request: FriendRequest) => {
+    chooseOption(`Decline ${displayName(request.sender)}’s request?`, [
+      { label: 'Decline', onPress: () => run(() => friendsAPI.reject(request.id), 'Couldn’t decline the request') },
+      { label: 'Decline and Block', destructive: true, onPress: () => confirmBlock(request.sender, load) },
     ]);
   };
 
   const isSearching = query.trim().length >= 2;
 
-  const searchHeader = (
-    <View style={styles.searchBox}>
-      <MaterialCommunityIcons name="magnify" size={20} color="#9ca3af" />
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Find people by name or email"
-        value={query}
-        onChangeText={setQuery}
-        autoCapitalize="none"
-        autoCorrect={false}
-        clearButtonMode="while-editing"
-      />
-      {searching && <ActivityIndicator size="small" color="#6366f1" />}
-    </View>
-  );
-
-  if (isSearching) {
-    return (
-      <View style={styles.container}>
-        {searchHeader}
-        <SectionList
-          sections={[{ title: 'People', data: results }]}
-          keyExtractor={(item) => `user-${item.id}`}
-          keyboardShouldPersistTaps="handled"
-          renderSectionHeader={() => null}
-          ListEmptyComponent={
-            !searching ? <Text style={styles.emptySubtext}>No users found for “{query.trim()}”</Text> : null
-          }
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Avatar user={item} />
-              <View style={styles.info}>
-                <Text style={styles.name}>{displayName(item)}</Text>
-                <Text style={styles.email}>{item.email}</Text>
-              </View>
-              <RelationButton user={item} onAdd={() => sendRequest(item)} />
-            </View>
-          )}
-        />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      {searchHeader}
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 32 }} size="large" color="#6366f1" />
-      ) : (
-        <SectionList
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                load();
-              }}
+      <ScreenHeader title="Friends" scrollY={scrollY} />
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={colors.textTertiary}
+            onRefresh={() => {
+              setRefreshing(true);
+              load();
+            }}
+          />
+        }
+      >
+        <LargeTitle
+          title="Friends"
+          subtitle={!loading && friends.length > 0 ? `${plural(friends.length, 'friend')} sharing places with you` : undefined}
+        />
+
+        <View style={styles.searchWrap}>
+          <View style={styles.search}>
+            <Ionicons name="search" size={18} color={colors.textTertiary} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Find people by name or email"
+              placeholderTextColor={colors.textTertiary}
+              selectionColor={colors.accent}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              returnKeyType="search"
+              style={styles.searchInput}
+              accessibilityLabel="Find people by name or email"
             />
-          }
-          stickySectionHeadersEnabled={false}
-          sections={[
-            { key: 'requests', title: `Friend requests (${requests.length})`, data: requests as (FriendRequest | Friend)[] },
-            { key: 'friends', title: `Friends (${friends.length})`, data: friends as (FriendRequest | Friend)[] },
-          ].filter((section) => section.data.length > 0)}
-          keyExtractor={(item) => ('sender' in item ? `request-${item.id}` : `friend-${item.id}`)}
-          renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="account-multiple-outline" size={48} color="#d1d5db" />
-              <Text style={styles.emptyText}>No friends yet</Text>
-              <Text style={styles.emptySubtext}>
-                Search for people above. Their saved places will show up on your map.
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) =>
-            'sender' in item ? (
-              <View style={styles.card}>
-                <Avatar user={item.sender} />
-                <View style={styles.info}>
-                  <Text style={styles.name}>{displayName(item.sender)}</Text>
-                  <Text style={styles.email}>wants to be your friend</Text>
+            {searching && <ActivityIndicator size="small" color={colors.textTertiary} />}
+          </View>
+        </View>
+
+        {isSearching ? (
+          <View style={styles.block}>
+            <SectionHeader title="People" />
+            {results.length > 0 ? (
+              <ListGroup separatorInset={ROW_INSET}>
+                {results.map((person) => (
+                  <ListRow
+                    key={person.id}
+                    title={displayName(person)}
+                    subtitle={person.email}
+                    leading={<Avatar user={person} size={AVATAR} />}
+                    trailing={<RelationAction person={person} onAdd={() => addFriend(person)} />}
+                  />
+                ))}
+              </ListGroup>
+            ) : (
+              !searching && (
+                <AppText variant="callout" tone="secondary" style={styles.noResults}>
+                  No one found for “{query.trim()}”. Try their full email address.
+                </AppText>
+              )
+            )}
+          </View>
+        ) : loading ? (
+          <View style={styles.block}>
+            <ListGroup separatorInset={ROW_INSET}>
+              {[0, 1, 2].map((i) => (
+                <SkeletonRow key={i} avatar={AVATAR} />
+              ))}
+            </ListGroup>
+          </View>
+        ) : (
+          <>
+            {requests.length > 0 && (
+              <View style={styles.block}>
+                <SectionHeader title="Requests" detail={String(requests.length)} />
+                <View style={styles.requests}>
+                  {requests.map((request) => (
+                    <View key={request.id} style={styles.requestCard}>
+                      <View style={styles.requestTop}>
+                        <Avatar user={request.sender} size={AVATAR} />
+                        <View style={styles.requestText}>
+                          <AppText variant="headline" numberOfLines={1}>
+                            {displayName(request.sender)}
+                          </AppText>
+                          <AppText variant="footnote" tone="secondary">
+                            Wants to share places with you
+                          </AppText>
+                        </View>
+                      </View>
+                      <View style={styles.requestButtons}>
+                        <Button
+                          title="Accept"
+                          size="sm"
+                          onPress={() => accept(request)}
+                          loading={busyRequest === request.id}
+                          style={styles.requestButton}
+                        />
+                        <Button
+                          title="Decline"
+                          size="sm"
+                          variant="secondary"
+                          onPress={() => decline(request)}
+                          style={styles.requestButton}
+                        />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-                <TouchableOpacity
-                  style={[styles.roundButton, styles.accept]}
-                  onPress={() => runAction(() => friendsAPI.accept(item.id), 'Could not accept request')}
-                  accessibilityLabel="Accept request"
-                >
-                  <MaterialCommunityIcons name="check" size={20} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.roundButton, styles.reject]}
-                  onPress={() => declineRequest(item)}
-                  accessibilityLabel="Decline request"
-                >
-                  <MaterialCommunityIcons name="close" size={20} color="#fff" />
-                </TouchableOpacity>
+              </View>
+            )}
+
+            {friends.length > 0 ? (
+              <View style={styles.block}>
+                <SectionHeader title="Your friends" />
+                <ListGroup separatorInset={ROW_INSET}>
+                  {friends.map((friend) => (
+                    <ListRow
+                      key={friend.id}
+                      title={displayName(friend)}
+                      subtitle={friend.email}
+                      leading={<Avatar user={friend} size={AVATAR} />}
+                      onPress={() => router.push({ pathname: '/friend', params: { userId: friend.id } })}
+                      accessibilityHint="Shows the places they share"
+                    />
+                  ))}
+                </ListGroup>
+                <AppText variant="footnote" tone="tertiary" style={styles.footnote}>
+                  Friends see the places you share, and you see theirs. Open a friend to remove or block them.
+                </AppText>
               </View>
             ) : (
-              <TouchableOpacity style={styles.card} onLongPress={() => showFriendOptions(item)}>
-                <Avatar user={item} />
-                <View style={styles.info}>
-                  <Text style={styles.name}>{displayName(item)}</Text>
-                  <Text style={styles.email}>{item.email}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => showFriendOptions(item)}
-                  hitSlop={10}
-                  accessibilityLabel={`Options for ${displayName(item)}`}
-                >
-                  <MaterialCommunityIcons name="dots-vertical" size={22} color="#9ca3af" />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            )
-          }
-        />
-      )}
+              requests.length === 0 && (
+                <EmptyState
+                  icon="people-outline"
+                  tint="social"
+                  title="Better with friends"
+                  message="Search for people you know. Once they accept, the places they love appear on your map."
+                />
+              )
+            )}
+          </>
+        )}
+      </Animated.ScrollView>
     </View>
   );
 }
 
-function RelationButton({ user, onAdd }: { user: UserSearchResult; onAdd: () => void }) {
-  switch (user.relation) {
+function RelationAction({ person, onAdd }: { person: UserSearchResult; onAdd: () => void }) {
+  switch (person.relation) {
     case 'FRIEND':
-      return <Text style={styles.relationText}>Friends</Text>;
+      return <Tag label="Friends" icon="checkmark" tint="accent" />;
     case 'REQUEST_SENT':
-      return <Text style={styles.relationText}>Requested</Text>;
+      return <Tag label="Requested" icon="time-outline" />;
     case 'REQUEST_RECEIVED':
-      return (
-        <TouchableOpacity style={styles.addButton} onPress={onAdd}>
-          <Text style={styles.addButtonText}>Accept</Text>
-        </TouchableOpacity>
-      );
+      return <Button title="Accept" size="sm" onPress={onAdd} />;
     default:
-      return (
-        <TouchableOpacity style={styles.addButton} onPress={onAdd}>
-          <MaterialCommunityIcons name="account-plus" size={16} color="#fff" />
-          <Text style={styles.addButtonText}>Add</Text>
-        </TouchableOpacity>
-      );
+      return <Button title="Add" icon="person-add-outline" size="sm" variant="tinted" onPress={onAdd} />;
   }
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.background,
   },
-  searchBox: {
+  content: {
+    paddingBottom: space.xxxl,
+  },
+  searchWrap: {
+    paddingHorizontal: screenPadding,
+  },
+  search: {
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    margin: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    gap: space.xs,
+    paddingHorizontal: space.sm + 2,
+    borderRadius: radius.md - 2,
+    borderCurve: 'continuous',
+    backgroundColor: colors.fill,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 12,
-    fontSize: 15,
+    fontSize: type.body.fontSize,
+    color: colors.text,
+    outlineWidth: 0,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 10,
+  block: {
+    marginTop: space.xl,
+    paddingHorizontal: screenPadding,
   },
-  card: {
+  noResults: {
+    paddingHorizontal: space.xxs,
+  },
+  requests: {
+    gap: space.sm,
+  },
+  requestCard: {
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+  },
+  requestTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
+    gap: space.sm,
   },
-  info: {
+  requestText: {
+    flex: 1,
+    gap: 2,
+  },
+  requestButtons: {
+    flexDirection: 'row',
+    gap: space.xs,
+    marginTop: space.md,
+  },
+  requestButton: {
     flex: 1,
   },
-  name: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  email: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  roundButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  accept: {
-    backgroundColor: '#10b981',
-  },
-  reject: {
-    backgroundColor: '#ef4444',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 16,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  relationText: {
-    color: '#6b7280',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 12,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 6,
+  footnote: {
+    marginTop: space.sm,
+    marginHorizontal: space.xxs,
   },
 });
