@@ -8,7 +8,8 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "primaryColor": "#6366f1",
+    "primaryColor": "#5E6F61",
+    "backgroundColor": "#F7F5F0",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.suderdagi.haritaly",
@@ -49,9 +50,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160,
+          "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F7F5F0"
         }
       ],
       [
