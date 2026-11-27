@@ -13,6 +13,7 @@ import { Coordinates, regionAround } from '@/src/lib/geo';
 import { setPendingLocation } from '@/src/lib/pendingLocation';
 import { MapRegion } from '@/src/types';
 import { AppText, Button, IconButton } from '@/src/components/ui';
+import { MarkerArt, TIP_OFFSET } from '@/src/components/map/MarkerArt';
 
 const ISTANBUL = { latitude: 41.0369, longitude: 28.985 };
 
@@ -119,10 +120,8 @@ export default function PickLocationScreen() {
         <Animated.View
           style={[styles.pinGroup, { transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) }] }]}
         >
-          <View style={styles.pin}>
-            <Ionicons name="location" size={20} color={colors.textInverse} />
-          </View>
-          <View style={styles.stem} />
+          {/* The same marker as a new place on the map */}
+          <MarkerArt kind="mine" icon="add" selected />
         </Animated.View>
         <View style={styles.dot} />
       </View>
@@ -189,8 +188,6 @@ export default function PickLocationScreen() {
   );
 }
 
-const PIN = 40;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -203,25 +200,8 @@ const styles = StyleSheet.create({
   },
   pinGroup: {
     alignItems: 'center',
-    // The stem's tip sits on the center of the screen
-    marginBottom: PIN + 12,
-  },
-  pin: {
-    width: PIN,
-    height: PIN,
-    borderRadius: PIN / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.markerSelected,
-    borderWidth: 2.5,
-    borderColor: colors.markerRing,
-    boxShadow: shadow.marker,
-  },
-  stem: {
-    width: 2.5,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: colors.markerSelected,
+    // The marker's tail tip sits on the center of the screen
+    marginBottom: -2 * TIP_OFFSET.y,
   },
   dot: {
     position: 'absolute',

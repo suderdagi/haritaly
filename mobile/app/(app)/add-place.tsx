@@ -21,7 +21,7 @@ import { colors, radius, screenPadding, space } from '@/src/theme';
 import { placesAPI } from '@/src/api/places';
 import { assetUrl, getErrorMessage } from '@/src/api/client';
 import { useUserLocation } from '@/src/store/location';
-import { CATEGORIES, categoryIconOutline, categoryLabel } from '@/src/lib/categories';
+import { CATEGORIES, categoryIcon, categoryIconOutline, categoryLabel } from '@/src/lib/categories';
 import { describeLocation } from '@/src/lib/address';
 import { haptics } from '@/src/lib/haptics';
 import { PendingLocation, takePendingLocation } from '@/src/lib/pendingLocation';
@@ -302,7 +302,7 @@ export default function AddPlaceScreen() {
           {location ? (
             <View>
               <PressableScale onPress={openPicker} scaleTo={0.985} accessibilityRole="button" accessibilityLabel="Change location">
-                <LocationPreview point={location} />
+                <LocationPreview point={location} icon={form.category ? categoryIcon(form.category) : 'add'} />
                 <View style={styles.changeBadge}>
                   <Ionicons name="move-outline" size={14} color={colors.text} />
                   <AppText variant="caption">Adjust</AppText>
