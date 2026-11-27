@@ -1,30 +1,22 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Marker } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, palette, shadow } from '@/src/theme';
-import { categoryIcon } from '@/src/lib/categories';
+import { colors, shadow } from '@/src/theme';
+import { categoryIcon, categoryLabel } from '@/src/lib/categories';
+import { firstName, possessive } from '@/src/lib/format';
 import { Cluster, Spot } from '@/src/lib/spots';
 import { AppText } from '../ui/AppText';
+import { MARKER_BOX, MarkerArt, TIP_OFFSET, TIP_Y } from './MarkerArt';
 
 /**
- * Map marker system
- *
- *   ● eucalyptus circle   a place you saved
- *   ● lavender circle     a friend's place
- *   the icon inside       the category (cafe, park, …)
- *   number badge          how many people saved the same place
- *   heart badge           one of your favorites
- *   charcoal, larger      the selected place, with its name above it
- *   paper circle + count  several places close together; tap to zoom in
- *
- * Names are not printed under every marker: the map stays calm, and the name appears on selection.
- * Each marker sits in a fixed-size box so selecting it never shifts its position.
+ * Map markers. The drawing lives in MarkerArt; this file places it on the map.
+ * Every place marker sits in a box of the same size and is anchored at its tail's tip, so selecting
+ * one (which scales it up from the tip) never moves the spot it points at.
  */
 
-const BOX = 58;
-const PIN = 36;
-const SELECTED_SCALE = 1.25;
+const SELECTED_SCALE = 1.18;
+// Android anchors by fraction of the view; iOS (Apple Maps) uses centerOffset
+const TIP_ANCHOR = { x: 0.5, y: TIP_Y / MARKER_BOX.height };
 
 function useSelectionScale(selected: boolean) {
   const scale = useRef(new Animated.Value(selected ? SELECTED_SCALE : 1)).current;
@@ -33,7 +25,7 @@ function useSelectionScale(selected: boolean) {
       toValue: selected ? SELECTED_SCALE : 1,
       useNativeDriver: true,
       speed: 18,
-      bounciness: 8,
+      bounciness: 9,
     }).start();
   }, [selected, scale]);
   return scale;
@@ -51,49 +43,48 @@ export function SpotMarker({
   onPress: () => void;
 }) {
   const scale = useSelectionScale(selected);
-  const fill = selected ? colors.markerSelected : spot.hasMine ? colors.markerMine : colors.markerFriend;
-  const owner = spot.hasMine ? 'Your place' : "Friend's place";
+  const who = spot.hasMine
+    ? 'Your place'
+    : spot.people > 1
+      ? `Saved by ${spot.people} friends`
+      : `${possessive(firstName(spot.primary.user))} pick`;
 
   return (
     <Marker
       coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
       onPress={onPress}
+      centerOffset={TIP_OFFSET}
+      anchor={TIP_ANCHOR}
       zIndex={selected ? 100 : spot.hasMine ? 3 : 2}
       tracksViewChanges={false}
     >
-      <View
-        style={styles.box}
+      <Animated.View
         accessible
         accessibilityRole="button"
-        accessibilityLabel={`${spot.primary.name}, ${owner}${spot.people > 1 ? `, saved by ${spot.people} people` : ''}`}
+        accessibilityLabel={`${spot.primary.name}, ${categoryLabel(spot.primary.category)}, ${who}`}
+        accessibilityState={{ selected }}
+        style={{ transform: [{ scale }], transformOrigin: `50% ${TIP_Y}px 0` }}
       >
-        <Animated.View style={[styles.pin, { backgroundColor: fill, transform: [{ scale }] }]}>
-          <Ionicons name={categoryIcon(spot.primary.category)} size={17} color={palette.white} />
-          {spot.people > 1 ? (
-            <View style={[styles.badge, styles.countBadge]}>
-              <AppText style={styles.badgeText} maxFontSizeMultiplier={1}>
-                {spot.people}
-              </AppText>
-            </View>
-          ) : favorite ? (
-            <View style={[styles.badge, styles.heartBadge]}>
-              <Ionicons name="heart" size={9} color={palette.white} />
-            </View>
-          ) : null}
-        </Animated.View>
-      </View>
+        <MarkerArt
+          kind={spot.hasMine ? 'mine' : 'friend'}
+          icon={categoryIcon(spot.primary.category)}
+          selected={selected}
+          friend={spot.primary.user}
+          people={spot.people}
+          favorite={favorite}
+        />
+      </Animated.View>
     </Marker>
   );
 }
 
-/** The selected place's name, drawn as a separate marker above the pin. */
+/** The selected place's name, as a separate marker floating above the tile. */
 export function SelectionLabel({ spot }: { spot: Spot }) {
   return (
     <Marker
       coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
-      // iOS places the label's center this far above the coordinate (Apple Maps), Android uses the anchor
-      centerOffset={{ x: 0, y: -48 }}
-      anchor={{ x: 0.5, y: 2.3 }}
+      centerOffset={{ x: 0, y: -(TIP_Y * SELECTED_SCALE + 14) }}
+      anchor={{ x: 0.5, y: 3.1 }}
       tappable={false}
       zIndex={101}
       tracksViewChanges={false}
@@ -109,9 +100,8 @@ export function SelectionLabel({ spot }: { spot: Spot }) {
 
 export function ClusterMarker({ cluster, onPress }: { cluster: Cluster; onPress: () => void }) {
   const mine = cluster.spots.filter((s) => s.hasMine).length;
-  const ring =
-    mine === cluster.spots.length ? colors.markerMine : mine === 0 ? colors.markerFriend : colors.markerSelected;
-  const size = cluster.spots.length >= 10 ? 46 : 40;
+  const friends = cluster.spots.length - mine;
+  const size = cluster.spots.length >= 10 ? 50 : 44;
 
   return (
     <Marker
@@ -121,15 +111,20 @@ export function ClusterMarker({ cluster, onPress }: { cluster: Cluster; onPress:
       tracksViewChanges={false}
     >
       <View
-        style={styles.box}
+        style={styles.clusterBox}
         accessible
         accessibilityRole="button"
-        accessibilityLabel={`${cluster.spots.length} places. Zoom in`}
+        accessibilityLabel={`${cluster.spots.length} places here: ${mine} yours, ${friends} from friends. Zoom in`}
       >
-        <View style={[styles.cluster, { width: size, height: size, borderRadius: size / 2, borderColor: ring }]}>
+        <View style={[styles.cluster, { width: size, height: size, borderRadius: size / 2 }]}>
           <AppText variant="headline" maxFontSizeMultiplier={1}>
             {cluster.spots.length}
           </AppText>
+          {/* How the group splits between yours and friends', as two small bars */}
+          <View style={styles.split}>
+            {mine > 0 && <View style={[styles.splitPart, { flex: mine, backgroundColor: colors.markerMine }]} />}
+            {friends > 0 && <View style={[styles.splitPart, { flex: friends, backgroundColor: colors.markerFriend }]} />}
+          </View>
         </View>
       </View>
     </Marker>
@@ -139,68 +134,40 @@ export function ClusterMarker({ cluster, onPress }: { cluster: Cluster; onPress:
 /** A pin dropped with a long press, before it becomes a saved place. */
 export function DraftMarker({ coordinate }: { coordinate: { latitude: number; longitude: number } }) {
   return (
-    <Marker coordinate={coordinate} zIndex={102} tracksViewChanges={false}>
-      <View style={styles.box} accessible accessibilityLabel="Dropped pin">
-        <View style={[styles.pin, styles.draft]}>
-          <Ionicons name="add" size={22} color={palette.white} />
-        </View>
+    <Marker coordinate={coordinate} centerOffset={TIP_OFFSET} anchor={TIP_ANCHOR} zIndex={102} tracksViewChanges={false}>
+      <View accessible accessibilityLabel="Dropped pin" style={{ transform: [{ scale: SELECTED_SCALE }], transformOrigin: `50% ${TIP_Y}px 0` }}>
+        <MarkerArt kind="mine" icon="add" selected />
       </View>
     </Marker>
   );
 }
 
 const styles = StyleSheet.create({
-  box: {
-    width: BOX,
-    height: BOX,
+  clusterBox: {
+    width: 58,
+    height: 58,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pin: {
-    width: PIN,
-    height: PIN,
-    borderRadius: PIN / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: colors.markerRing,
-    boxShadow: shadow.marker,
-  },
-  draft: {
-    backgroundColor: colors.markerSelected,
-    transform: [{ scale: SELECTED_SCALE }],
-  },
-  badge: {
-    position: 'absolute',
-    top: -6,
-    right: -7,
-    minWidth: 17,
-    height: 17,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.markerRing,
-  },
-  countBadge: {
-    backgroundColor: colors.markerSelected,
-  },
-  heartBadge: {
-    backgroundColor: colors.favorite,
-  },
-  badgeText: {
-    color: palette.white,
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: '700',
   },
   cluster: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
-    borderWidth: 3,
+    borderWidth: 2.5,
+    borderColor: colors.markerRing,
     boxShadow: shadow.marker,
+  },
+  split: {
+    flexDirection: 'row',
+    width: 20,
+    height: 3,
+    marginTop: 2,
+    borderRadius: 2,
+    overflow: 'hidden',
+    gap: 1,
+  },
+  splitPart: {
+    height: 3,
   },
   label: {
     maxWidth: 200,
@@ -215,3 +182,4 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 });
+

@@ -1,28 +1,32 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/src/theme';
+import { colors, palette } from '@/src/theme';
 import { categoryIcon } from '@/src/lib/categories';
 
 export type PlaceOwner = 'mine' | 'friend';
 
-const tints: Record<PlaceOwner, { bg: string; fg: string }> = {
-  mine: { bg: colors.accentSoft, fg: colors.markerMine },
-  friend: { bg: colors.socialSoft, fg: colors.markerFriend },
-};
-
 /**
- * The category icon on a soft tile, tinted by whose place it is. It mirrors the map markers,
- * so a place looks the same in a list as it does on the map.
+ * The category icon on a tile drawn like the map markers: solid eucalyptus for your places,
+ * paper with a lavender edge for friends'. A place looks the same in a list as on the map.
  */
 export function PlaceGlyph({ category, owner, size = 44 }: { category?: string | null; owner: PlaceOwner; size?: number }) {
-  const t = tints[owner];
+  const mine = owner === 'mine';
   return (
     <View
-      style={[styles.tile, { width: size, height: size, borderRadius: size * 0.32, backgroundColor: t.bg }]}
+      style={[
+        styles.tile,
+        {
+          width: size,
+          height: size,
+          borderRadius: size * 0.32,
+          backgroundColor: mine ? colors.markerMine : colors.surface,
+          borderColor: mine ? colors.markerMine : colors.markerFriend,
+        },
+      ]}
       accessible={false}
     >
-      <Ionicons name={categoryIcon(category)} size={size * 0.45} color={t.fg} />
+      <Ionicons name={categoryIcon(category)} size={size * 0.44} color={mine ? palette.white : colors.markerFriend} />
     </View>
   );
 }
@@ -32,5 +36,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderCurve: 'continuous',
+    borderWidth: 2,
   },
 });
