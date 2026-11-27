@@ -1,8 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-  </defs>
-  <g transform="translate(512 512) scale(0.9) translate(-512 -560)">
-    <path d="M512 860 C 432 748 282 612 282 440 A 230 230 0 1 1 742 440 C 742 612 592 748 512 860 Z" fill="#55655A"/>
-    <path d="M512 548 C 452 506 382 458 382 392 C 382 348 416 316 458 316 C 482 316 501 328 512 348 C 523 328 542 316 566 316 C 608 316 642 348 642 392 C 642 458 572 506 512 548 Z" fill="#F7F5F0"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><g transform="translate(512 512) scale(0.9) translate(-512 -512)"><circle cx="430" cy="452" r="210" fill="none" stroke="#4E6A55" stroke-width="40"/><circle cx="594" cy="572" r="210" fill="none" stroke="#4E6A55" stroke-width="40"/><path d="M620.5 363.7 A210 210 0 0 1 403.5 660.3 A210 210 0 0 1 620.5 363.7 Z" fill="#4E6A55"/><polygon points="512.0,408.0 534.1,489.9 616.0,512.0 534.1,534.1 512.0,616.0 489.9,534.1 408.0,512.0 489.9,489.9" fill="#F7F5F0" stroke="#F7F5F0" stroke-width="6" stroke-linejoin="round"/></g></svg>

@@ -55,7 +55,6 @@ export default function RegisterScreen() {
 
   return (
     <AuthScaffold
-      heroHeight={220}
       title="Create your account"
       subtitle="Save the places you love and see the ones your friends recommend."
     >

@@ -1,39 +1,43 @@
 import React from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, palette, screenPadding, shadow, space } from '@/src/theme';
+import { colors, screenPadding, shadow, space } from '@/src/theme';
 import { IconName } from '@/src/lib/categories';
 import { AppText } from '../ui/AppText';
+import { MARKER_BOX, MarkerArt, MarkerKind, TIP_Y } from '../map/MarkerArt';
 
-const HERO_REGION = { latitude: 41.039, longitude: 28.987, latitudeDelta: 0.032, longitudeDelta: 0.03 };
+// The illustration is drawn at 1179 × 780 (393 × 260 pt at 3x). Its top 40 pt fade in and sit under
+// the status bar, its bottom fades into the page. Markers are placed in fractions of it, by their tips.
+const HERO_RATIO = 780 / 1179;
+const HERO_BLEED = 40 / 260;
+const FRIEND = { id: 2, email: 'friend@haritaly.app', firstName: 'Ada', lastName: 'Kaya', profilePicture: null };
 
-// Decoration only: a hint of what the map looks like once friends start saving places
-const DECOR: { latitude: number; longitude: number; icon: IconName; mine: boolean }[] = [
-  { latitude: 41.0468, longitude: 28.9905, icon: 'leaf', mine: true },
-  { latitude: 41.0402, longitude: 28.9712, icon: 'cafe', mine: false },
-  { latitude: 41.0372, longitude: 29.0028, icon: 'restaurant', mine: false },
-  { latitude: 41.0318, longitude: 28.9838, icon: 'camera', mine: true },
+const MARKERS: { x: number; y: number; kind: MarkerKind; icon: IconName; people?: number; friend?: typeof FRIEND }[] = [
+  // The two ends of the dotted route in the illustration (see assets/source/login-hero.svg)
+  { x: 0.24, y: 0.5, kind: 'mine', icon: 'leaf' },
+  { x: 0.7, y: 0.76, kind: 'friend', icon: 'cafe', friend: FRIEND },
+  { x: 0.84, y: 0.44, kind: 'friend', icon: 'restaurant', people: 2 },
 ];
 
 /**
- * Shared layout of the login and sign-up screens: a quiet map fading into the page,
- * the app icon, a title and the form.
+ * Shared layout of the sign-in and sign-up screens: an illustrated map (contour lines, a route
+ * between your place and a friend's) that fades into the page, the app icon, a title and the form.
+ * It is a drawing, not a live map, so no map provider is involved before the user signs in.
+ * The markers always sit below the status bar; only the faded top of the drawing goes under it.
  */
 export function AuthScaffold({
-  heroHeight = 300,
   title,
   subtitle,
   children,
 }: {
-  heroHeight?: number;
   title: string;
   subtitle: string;
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const drawingHeight = width * HERO_RATIO;
+  const bleed = drawingHeight * HERO_BLEED;
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -42,37 +46,22 @@ export function AuthScaffold({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + space.xl }]}
       >
-        <View style={{ height: heroHeight }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <MapView
-            style={StyleSheet.absoluteFill}
-            initialRegion={HERO_REGION}
-            mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
-            scrollEnabled={false}
-            zoomEnabled={false}
-            rotateEnabled={false}
-            pitchEnabled={false}
-            showsPointsOfInterest={false}
-            toolbarEnabled={false}
-            liteMode
-            pointerEvents="none"
-          >
-            {DECOR.map((m) => (
-              <Marker key={m.icon} coordinate={m} tappable={false} tracksViewChanges={false}>
-                <View style={[styles.marker, { backgroundColor: m.mine ? colors.markerMine : colors.markerFriend }]}>
-                  <Ionicons name={m.icon} size={14} color={palette.white} />
-                </View>
-              </Marker>
+        <View
+          style={{ height: insets.top + drawingHeight - bleed, overflow: 'hidden' }}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <View style={{ position: 'absolute', left: 0, right: 0, top: insets.top - bleed, height: drawingHeight }}>
+            <Image source={require('../../../assets/login-hero.png')} style={{ width, height: drawingHeight }} />
+            {MARKERS.map((m) => (
+              <View
+                key={m.icon}
+                style={{ position: 'absolute', left: m.x * width - MARKER_BOX.width / 2, top: m.y * drawingHeight - TIP_Y }}
+              >
+                <MarkerArt kind={m.kind} icon={m.icon} friend={m.friend} people={m.people} />
+              </View>
             ))}
-          </MapView>
-          <LinearGradient
-            colors={['rgba(247, 245, 240, 0.7)', 'rgba(247, 245, 240, 0)']}
-            style={[styles.topFade, { height: insets.top + 40 }]}
-          />
-          <LinearGradient
-            colors={['rgba(247, 245, 240, 0)', 'rgba(247, 245, 240, 0.75)', colors.background]}
-            locations={[0, 0.6, 1]}
-            style={styles.bottomFade}
-          />
+          </View>
         </View>
 
         <View style={styles.body}>
@@ -100,31 +89,8 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
   },
-  marker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.markerRing,
-    boxShadow: shadow.marker,
-  },
-  topFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '45%',
-  },
   body: {
-    marginTop: -ICON / 2 - space.md,
+    marginTop: -ICON / 2,
     paddingHorizontal: screenPadding + space.xxs,
   },
   icon: {
@@ -143,4 +109,3 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
 });
-
