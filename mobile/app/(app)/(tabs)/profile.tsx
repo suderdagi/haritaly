@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Animated, Linking, StyleSheet, View } from 'react-native';
+import { Alert, Animated, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { colors, radius, screenPadding, space } from '@/src/theme';
@@ -8,8 +8,6 @@ import { useUserLocation } from '@/src/store/location';
 import { usersAPI } from '@/src/api/users';
 import { friendsAPI } from '@/src/api/friends';
 import { placesAPI } from '@/src/api/places';
-import { getAppConfig } from '@/src/api/config';
-import { hasAiConsent, setAiConsent } from '@/src/utils/aiConsent';
 import { openWebPage } from '@/src/utils/openWebPage';
 import { displayName } from '@/src/types';
 import {
@@ -35,11 +33,9 @@ interface Stats {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { status: locationStatus, requestLocation } = useUserLocation();
+  const { status: locationStatus } = useUserLocation();
   const { scrollY, onScroll } = useScrollTitle();
   const [stats, setStats] = useState<Stats>({ places: null, friends: null, favorites: null });
-  const [aiAvailable, setAiAvailable] = useState(false);
-  const [aiAllowed, setAiAllowed] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
   useFocusEffect(
@@ -52,18 +48,11 @@ export default function ProfileScreen() {
         settle(friendsAPI.list(), (f) => f.length),
         settle(placesAPI.getFavorites(), (f) => f.length),
       ]).then(([places, friends, favorites]) => active && setStats({ places, friends, favorites }));
-      getAppConfig().then((config) => active && setAiAvailable(config.aiSummary));
-      hasAiConsent().then((allowed) => active && setAiAllowed(allowed));
       return () => {
         active = false;
       };
     }, [])
   );
-
-  const toggleAi = async (allowed: boolean) => {
-    setAiAllowed(allowed);
-    await setAiConsent(allowed);
-  };
 
   const logOut = () => {
     Alert.alert('Log out of Haritaly?', undefined, [
@@ -88,8 +77,7 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  const locationValue =
-    locationStatus === 'granted' ? 'While using' : locationStatus === 'denied' ? 'Off' : 'Not set';
+  const locationValue = locationStatus === 'granted' ? 'On' : locationStatus === 'denied' ? 'Off' : 'Not set';
 
   return (
     <View style={styles.container}>
@@ -142,30 +130,13 @@ export default function ProfileScreen() {
           <SectionHeader title="Privacy & safety" />
           <ListGroup>
             <ListRow
-              icon="navigate-outline"
+              icon="shield-half-outline"
               tint="accent"
-              title="Location"
-              subtitle="Never shared with friends"
-              value={locationValue}
-              onPress={() => (locationStatus === 'undetermined' ? requestLocation() : Linking.openSettings())}
-              accessibilityHint={locationStatus === 'undetermined' ? 'Asks for location access' : 'Opens Settings'}
+              title="Privacy & visibility"
+              subtitle={`Location ${locationValue.toLowerCase()} · who sees your places`}
+              onPress={() => router.push('/privacy')}
             />
-            <ListRow
-              icon="ban-outline"
-              tint="neutral"
-              title="Blocked people"
-              onPress={() => router.push('/blocked-users')}
-            />
-            {aiAvailable ? (
-              <ListRow
-                icon="sparkles"
-                tint="social"
-                title="AI summaries"
-                subtitle="Lets OpenAI read saved notes to summarize a place"
-                switchValue={aiAllowed}
-                onSwitchChange={toggleAi}
-              />
-            ) : null}
+            <ListRow icon="ban-outline" title="Blocked people" onPress={() => router.push('/blocked-users')} />
           </ListGroup>
         </View>
 

@@ -2,14 +2,15 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Alert, AppState, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { Coordinates } from '@/src/lib/geo';
+import { LocationExplainer } from '@/src/components/LocationExplainer';
 
 /**
  * Location, shared by the whole signed-in app.
  *
  * Privacy rules this follows (App Store guideline 5.1.1 and Apple's HIG):
  * - Nothing asks for permission on launch. The system prompt appears only after the user taps something
- *   that needs location (the locate button, "Use my location", "Current location" when adding a place),
- *   and the screen explains why before they tap.
+ *   that needs location (the locate button, "Use my location", the privacy screen), and the first time a
+ *   short explanation comes before it (LocationExplainer).
  * - Only "while using the app" access is requested. There is no background location.
  * - The position stays on the device; it is only used to center the map, measure distances and fill in
  *   the coordinates of a place the user saves. It is never sent to friends.
@@ -38,6 +39,8 @@ const toCoords = (p: Location.LocationObject): Coordinates => ({
 export function LocationProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<LocationStatus>('checking');
   const [coords, setCoords] = useState<Coordinates | null>(null);
+  const [explaining, setExplaining] = useState(false);
+  const continueAfterExplainer = useRef<(() => void) | null>(null);
   const watcher = useRef<Location.LocationSubscription | null>(null);
 
   const startUpdates = useCallback(async () => {
@@ -107,6 +110,11 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     let current = status === 'checking' ? await syncPermission() : status;
 
     if (current === 'undetermined') {
+      // Why first, then the system prompt
+      await new Promise<void>((resolve) => {
+        continueAfterExplainer.current = resolve;
+        setExplaining(true);
+      });
       const answer = await Location.requestForegroundPermissionsAsync();
       current = answer.status === 'granted' ? 'granted' : 'denied';
       setStatus(current);
@@ -135,7 +143,21 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     [status, coords, requestLocation, explainDenied]
   );
 
-  return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>;
+  return (
+    <LocationContext.Provider value={value}>
+      {children}
+      <LocationExplainer
+        visible={explaining}
+        onContinue={() => {
+          setExplaining(false);
+          const proceed = continueAfterExplainer.current;
+          continueAfterExplainer.current = null;
+          // Let the dialog finish closing before iOS shows its own alert
+          setTimeout(() => proceed?.(), 350);
+        }}
+      />
+    </LocationContext.Provider>
+  );
 }
 
 export function useUserLocation() {

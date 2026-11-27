@@ -1,20 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import MapView, { LongPressEvent, MapPressEvent } from 'react-native-maps';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, palette, radius, screenPadding, shadow, space } from '@/src/theme';
 import { useAuth } from '@/src/store/auth';
 import { useUserLocation } from '@/src/store/location';
 import { usePlaces } from '@/src/hooks/usePlaces';
-import { CATEGORIES, Category, categoryIconOutline, categoryLabel, categoryPlural } from '@/src/lib/categories';
+import { Category, categoryPlural } from '@/src/lib/categories';
 import { Coordinates, regionAround, regionContains, regionForPoints, regionRadius } from '@/src/lib/geo';
 import { haptics } from '@/src/lib/haptics';
 import { clusterSpots, groupIntoSpots, Spot } from '@/src/lib/spots';
 import { setPendingLocation } from '@/src/lib/pendingLocation';
 import { MapRegion, Place } from '@/src/types';
-import { Chip, IconButton } from '@/src/components/ui';
+import { IconButton } from '@/src/components/ui';
+import { CategoryRail, OwnerFilter, OwnerSwitch } from '@/src/components/map/MapFilters';
 import { ClusterMarker, DraftMarker, SelectionLabel, SpotMarker } from '@/src/components/map/Markers';
 import { SearchPanel, SearchPill } from '@/src/components/map/MapSearch';
 import { PlaceSheet } from '@/src/components/map/PlaceSheet';
@@ -34,11 +36,14 @@ const MIN_RADIUS_M = 100;
 const MAX_RADIUS_M = 50_000;
 const REGION_DEBOUNCE_MS = 400;
 
-const SHEET_PEEK = 96;
+// The sheet floats: a little above the tab bar and in from the screen edges, so the map frames it
+const SHEET_GAP = 10;
+// Collapsed, the sheet shows just its handle and header; the header is measured so large text still fits
+const HANDLE_HEIGHT = 25;
+const PEEK_BOTTOM = 14;
+const SHEET_MID = 0.46;
 const SEARCH_HEIGHT = 46;
-const FILTERS_HEIGHT = 36;
-
-type OwnerFilter = 'all' | 'mine' | 'friends';
+const FILTERS_HEIGHT = 44;
 
 export default function MapScreen() {
   const router = useRouter();
@@ -68,9 +73,18 @@ export default function MapScreen() {
   const [foundPlaces, setFoundPlaces] = useState<Place[]>([]);
   const [draft, setDraft] = useState<Coordinates | null>(null);
   const [searching, setSearching] = useState(false);
+  const [sheetIndex, setSheetIndex] = useState(0);
+  const [peekHeader, setPeekHeader] = useState(48);
+  const sheetPosition = useSharedValue(0);
 
   const topOverlay = insets.top + 6 + SEARCH_HEIGHT + space.xs + FILTERS_HEIGHT;
-  const snapPoints = useMemo(() => [SHEET_PEEK, '50%', '92%'], []);
+  const sheetPeek = HANDLE_HEIGHT + space.xxs + peekHeader + PEEK_BOTTOM;
+  const snapPoints = useMemo(() => [sheetPeek, `${SHEET_MID * 100}%`, '90%'], [sheetPeek]);
+  // Apple's map logo and legal link must stay visible, so they follow the top of the sheet
+  const sheetFrameHeight = mapSize.height - insets.top - SHEET_GAP;
+  const sheetTop = (sheetIndex >= 1 ? sheetFrameHeight * SHEET_MID : sheetPeek) + SHEET_GAP;
+  // The shadow is drawn outside the clipped sheet, so it follows the sheet's top edge
+  const sheetShadowStyle = useAnimatedStyle(() => ({ top: sheetPosition.value }));
 
   // ── Data ────────────────────────────────────────────────────────────────
 
@@ -230,12 +244,6 @@ export default function MapScreen() {
 
   const openDetails = (place: Place) => router.push({ pathname: '/place-details', params: { placeId: place.id } });
 
-  const ownerFilters: { key: OwnerFilter; label: string; dot?: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'mine', label: 'Yours', dot: colors.markerMine },
-    { key: 'friends', label: 'Friends', dot: colors.markerFriend },
-  ];
-
   // Sheet title when filters are on: "Your cafés", "Friends' places", "Parks"
   const filterLabel =
     category || owner !== 'all'
@@ -268,8 +276,8 @@ export default function MapScreen() {
         pitchEnabled={false}
         toolbarEnabled={false}
         // Keeps the Apple Maps logo, the legal link and the compass clear of the search bar and the sheet
-        mapPadding={{ top: topOverlay + 56, right: 0, bottom: SHEET_PEEK + 4, left: 0 }}
-        legalLabelInsets={{ top: 0, right: 0, bottom: SHEET_PEEK + 6, left: 12 }}
+        mapPadding={{ top: topOverlay + 56, right: 0, bottom: sheetTop + 4, left: 0 }}
+        legalLabelInsets={{ top: 0, right: 0, bottom: sheetTop + 6, left: 14 }}
         userInterfaceStyle="light"
       >
         {mapItems.map((item) =>
@@ -302,34 +310,11 @@ export default function MapScreen() {
             onPress={() => openAddPlace()}
           />
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-          style={styles.filterScroll}
-        >
-          {ownerFilters.map((f) => (
-            <Chip
-              key={f.key}
-              label={f.label}
-              dotColor={f.dot}
-              glass
-              selected={owner === f.key}
-              onPress={() => setOwner(f.key)}
-            />
-          ))}
+        <View style={styles.filters}>
+          <OwnerSwitch value={owner} onChange={setOwner} />
           <View style={styles.filterDivider} />
-          {CATEGORIES.filter((c) => c !== 'Other').map((c) => (
-            <Chip
-              key={c}
-              label={categoryLabel(c)}
-              icon={categoryIconOutline(c)}
-              glass
-              selected={category === c}
-              onPress={() => setCategory(category === c ? null : c)}
-            />
-          ))}
-        </ScrollView>
+          <CategoryRail value={category} onChange={setCategory} />
+        </View>
       </View>
 
       <View style={[styles.controls, { top: topOverlay + space.sm }]} pointerEvents="box-none">
@@ -343,47 +328,65 @@ export default function MapScreen() {
         />
       </View>
 
-      <BottomSheet
-        ref={sheetRef}
-        index={0}
-        snapPoints={snapPoints}
-        enableDynamicSizing={false}
-        enablePanDownToClose={false}
-        topInset={insets.top}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.handle}
-        style={styles.sheet}
-        accessibilityLabel="Places"
-      >
-        <BottomSheetScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
-          {draft ? (
-            <DraftSheet coordinate={draft} onAdd={(address) => openAddPlace(draft, address)} onCancel={clearSelection} />
-          ) : selected ? (
-            <PlaceSheet
-              spot={selected}
-              myId={user?.id}
-              userCoords={locationStatus === 'granted' ? coords : null}
-              isFavorite={isFavorite}
-              onToggleFavorite={toggleFavorite}
-              onOpenDetails={openDetails}
-              onClose={clearSelection}
-            />
-          ) : (
-            <AreaSheet
-              spots={spotsInView}
-              totalInView={spotsInView.length}
-              loading={loading}
-              origin={locationStatus === 'granted' && coords ? coords : region}
-              nearUser={locationStatus === 'granted' && !!coords && regionContains(region, coords)}
-              locationStatus={locationStatus}
-              onLocationContinue={() => (locationStatus === 'denied' ? Linking.openSettings() : locate())}
-              onSelect={(spot) => select(spot)}
-              isFavorite={isFavorite}
-              filterLabel={filterLabel}
-            />
-          )}
-        </BottomSheetScrollView>
-      </BottomSheet>
+      {/* A floating card: clipped a little above the tab bar so all four corners stay rounded */}
+      <View style={[styles.sheetFrame, { top: insets.top }]} pointerEvents="box-none">
+        <Animated.View style={[styles.sheetShadow, sheetShadowStyle]} pointerEvents="none" />
+        <View style={styles.sheetClip} pointerEvents="box-none">
+          <BottomSheet
+            ref={sheetRef}
+            index={0}
+            snapPoints={snapPoints}
+            onChange={setSheetIndex}
+            animatedPosition={sheetPosition}
+            enableDynamicSizing={false}
+            enablePanDownToClose={false}
+            backgroundStyle={styles.sheetBackground}
+            handleIndicatorStyle={styles.handle}
+            accessibilityLabel="Places"
+          >
+            <BottomSheetScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+              {draft ? (
+                <DraftSheet
+                  coordinate={draft}
+                  onAdd={(address) => openAddPlace(draft, address)}
+                  onCancel={clearSelection}
+                />
+              ) : selected ? (
+                <PlaceSheet
+                  spot={selected}
+                  myId={user?.id}
+                  userCoords={locationStatus === 'granted' ? coords : null}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
+                  onOpenDetails={openDetails}
+                  onOpenPerson={(userId) => router.push({ pathname: '/friend', params: { userId } })}
+                  onBlocked={() => {
+                    clearSelection();
+                    loadFriendsInView(true);
+                  }}
+                  onClose={clearSelection}
+                />
+              ) : (
+                <AreaSheet
+                  spots={spotsInView}
+                  totalInView={spotsInView.length}
+                  loading={loading}
+                  origin={locationStatus === 'granted' && coords ? coords : region}
+                  nearUser={locationStatus === 'granted' && !!coords && regionContains(region, coords)}
+                  locationStatus={locationStatus}
+                  onLocationContinue={() => (locationStatus === 'denied' ? Linking.openSettings() : locate())}
+                  onSelect={(spot) => select(spot)}
+                  isFavorite={isFavorite}
+                  filterLabel={filterLabel}
+                  onHeaderLayout={(height) =>
+                    setPeekHeader((prev) => (Math.abs(prev - height) < 1 ? prev : Math.ceil(height)))
+                  }
+                />
+              )}
+            </BottomSheetScrollView>
+          </BottomSheet>
+        </View>
+      </View>
 
       {searching && (
         <SearchPanel
@@ -428,35 +431,48 @@ const styles = StyleSheet.create({
     gap: space.xs,
     paddingHorizontal: screenPadding - 6,
   },
-  filterScroll: {
-    marginTop: space.xs,
-    // Room for the chips' shadows
-    overflow: 'visible',
-  },
   filters: {
-    gap: space.xs,
-    paddingHorizontal: screenPadding - 6,
+    flexDirection: 'row',
     alignItems: 'center',
-    height: FILTERS_HEIGHT + 4,
+    gap: space.xs,
+    marginTop: space.xs,
+    paddingLeft: screenPadding - 6,
+    height: FILTERS_HEIGHT,
   },
   filterDivider: {
     width: StyleSheet.hairlineWidth,
-    height: 20,
+    height: 22,
     backgroundColor: 'rgba(41, 45, 43, 0.25)',
-    marginHorizontal: 2,
   },
   controls: {
     position: 'absolute',
     right: screenPadding - 6,
   },
-  sheet: {
-    boxShadow: shadow.sheet,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
+  sheetFrame: {
+    position: 'absolute',
+    left: SHEET_GAP,
+    right: SHEET_GAP,
+    bottom: SHEET_GAP,
+  },
+  sheetShadow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.sheet,
+    borderCurve: 'continuous',
+    boxShadow: shadow.raised,
+  },
+  sheetClip: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    borderRadius: radius.sheet,
+    borderCurve: 'continuous',
   },
   sheetBackground: {
     backgroundColor: colors.surface,
     borderRadius: radius.sheet,
+    borderCurve: 'continuous',
   },
   handle: {
     backgroundColor: palette.stoneDeep,

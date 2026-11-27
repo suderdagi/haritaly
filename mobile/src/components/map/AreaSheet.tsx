@@ -26,6 +26,7 @@ export function AreaSheet({
   onSelect,
   isFavorite,
   filterLabel,
+  onHeaderLayout,
 }: {
   spots: Spot[];
   totalInView: number;
@@ -38,6 +39,8 @@ export function AreaSheet({
   onSelect: (spot: Spot) => void;
   isFavorite: (placeId: number) => boolean;
   filterLabel: string | null;
+  /** Reports the header's height, which sets how tall the collapsed sheet is. */
+  onHeaderLayout?: (height: number) => void;
 }) {
   const sorted = spots
     .map((spot) => ({ spot, distance: distanceInMeters(origin, spot) }))
@@ -47,7 +50,7 @@ export function AreaSheet({
 
   return (
     <View>
-      <View style={styles.header}>
+      <View style={styles.header} onLayout={(e) => onHeaderLayout?.(e.nativeEvent.layout.height)}>
         <View style={styles.headerText}>
           <AppText variant="title3">{filterLabel ?? (nearUser ? 'Around you' : 'In this area')}</AppText>
           <AppText variant="subhead" tone="secondary" style={styles.subtitle}>
@@ -110,13 +113,18 @@ function Legend({ color, label }: { color: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  // The legend moves under the title when larger text leaves no room beside it
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: space.sm,
+    columnGap: space.sm,
+    rowGap: space.xs,
   },
   headerText: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 200,
   },
   subtitle: {
     marginTop: 2,

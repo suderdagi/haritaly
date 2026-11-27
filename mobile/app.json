@@ -58,9 +58,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Haritaly uses your location to center the map, to save a place where you are, and to show places your friends saved nearby.",
-          "locationAlwaysAndWhenInUsePermission": "Haritaly only uses your location while you use the app: to center the map, save a place where you are, and show places your friends saved nearby.",
-          "locationAlwaysPermission": "Haritaly only uses your location while you use the app: to center the map, save a place where you are, and show places your friends saved nearby."
+          "locationWhenInUsePermission": "Haritaly uses your location while you use the app to center the map on you, show how far places are and save a place where you are. It is never shared with your friends.",
+          "locationAlwaysAndWhenInUsePermission": "Haritaly only uses your location while you use the app, to center the map on you, show how far places are and save a place where you are. It is never used in the background and never shared with your friends.",
+          "locationAlwaysPermission": "Haritaly only uses your location while you use the app, to center the map on you, show how far places are and save a place where you are. It is never used in the background and never shared with your friends."
         }
       ],
       [

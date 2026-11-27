@@ -16,12 +16,14 @@ The repository has two parts:
 - Share a place with your friends or keep it private, visible only to you
 - Edit or delete your own places
 - Find people by name or email, send friend requests, accept or reject them, and open a friend's profile to see the places they share
-- **The map:** Apple's muted map style with markers that tell your places from friends' and show the category; a place saved by several friends becomes one marker, and its sheet shows what each of them said; markers close together merge into clusters; search, owner and category filters, and a draggable sheet with the places around you
+- **The map:** Apple's muted map style with markers that tell your places (solid eucalyptus) from friends' (lavender edge with the friend's avatar) and show the category; a place saved by several friends becomes one marker, and its sheet shows what each of them said; markers close together merge into clusters; search, an All / Yours / Friends switch, category filters, and a floating sheet with the places around you
+- **Who recommended it:** every place leads with the person behind it: their avatar, "Mert's pick", their stars, note and what to order
 - See friends' places in the area shown on the map; panning loads the places saved there
 - Add your own or friends' places to favorites
 - **AI summary:** one tap summarizes what you and your friends saved about a place (ratings, notes, favorite food and drinks) with an LLM, after the user agrees to share the notes with OpenAI
 - Places are only visible to you and your friends, and private places only to you
-- **Safety:** report a friend's place, block users (ends the friendship, stops requests, hides each other from search), manage blocked users
+- **Privacy & visibility:** one screen explains location access, sets who sees new places by default, and links to blocked people, the policies and account deletion. Location is explained before iOS asks, used only while the app is open, and never shown to friends
+- **Safety:** report a friend's place or note and block its author from the map sheet or the place page, or block someone from their profile (blocking ends the friendship, stops requests and hides each other from search); manage blocked users
 - **Account deletion** inside the app, which removes every place, photo and friendship
 
 ## Design

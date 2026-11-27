@@ -21,14 +21,15 @@ import { colors, radius, screenPadding, space } from '@/src/theme';
 import { placesAPI } from '@/src/api/places';
 import { assetUrl, getErrorMessage } from '@/src/api/client';
 import { useUserLocation } from '@/src/store/location';
-import { CATEGORIES, categoryIconOutline, categoryLabel } from '@/src/lib/categories';
+import { CATEGORIES, categoryIcon, categoryIconOutline, categoryLabel } from '@/src/lib/categories';
 import { describeLocation } from '@/src/lib/address';
 import { haptics } from '@/src/lib/haptics';
 import { PendingLocation, takePendingLocation } from '@/src/lib/pendingLocation';
+import { getDefaultVisibility } from '@/src/lib/preferences';
 import { preparePhoto } from '@/src/utils/preparePhoto';
 import { chooseOption } from '@/src/utils/chooseOption';
 import { Photo, Place } from '@/src/types';
-import { AppText, Button, Chip, PressableScale, RatingInput, TextField } from '@/src/components/ui';
+import { AppText, Button, Chip, PressableScale, RatingInput, Segmented, TextField } from '@/src/components/ui';
 import { LocationPreview } from '@/src/components/place/LocationPreview';
 
 const MAX_PHOTOS = 5;
@@ -124,6 +125,17 @@ export default function AddPlaceScreen() {
       })
       .finally(() => setLoadingPlace(false));
   }, [editingId, router]);
+
+  // A new place starts with the visibility chosen in Privacy
+  useEffect(() => {
+    if (editingId) return;
+    getDefaultVisibility().then((v) => {
+      if (v === 'private') {
+        setForm((prev) => ({ ...prev, isPrivate: true }));
+        setInitial((prev) => ({ ...prev, isPrivate: true }));
+      }
+    });
+  }, [editingId]);
 
   // A new place starts where the user is, but only if they already allowed location.
   // Otherwise nothing is asked until they choose "Use my location".
@@ -290,7 +302,7 @@ export default function AddPlaceScreen() {
           {location ? (
             <View>
               <PressableScale onPress={openPicker} scaleTo={0.985} accessibilityRole="button" accessibilityLabel="Change location">
-                <LocationPreview point={location} />
+                <LocationPreview point={location} icon={form.category ? categoryIcon(form.category) : 'add'} />
                 <View style={styles.changeBadge}>
                   <Ionicons name="move-outline" size={14} color={colors.text} />
                   <AppText variant="caption">Adjust</AppText>
@@ -427,24 +439,22 @@ export default function AddPlaceScreen() {
         </Section>
 
         <Section title="Who can see it">
-          <View style={styles.segment}>
-            <Segment
-              icon="people-outline"
-              label="Friends"
-              selected={!form.isPrivate}
-              onPress={() => update('isPrivate', false)}
-            />
-            <Segment
-              icon="lock-closed-outline"
-              label="Only me"
-              selected={form.isPrivate}
-              onPress={() => update('isPrivate', true)}
-            />
-          </View>
+          <Segmented
+            accessibilityLabel="Who can see this place"
+            value={form.isPrivate ? 'private' : 'friends'}
+            onChange={(v) => update('isPrivate', v === 'private')}
+            options={[
+              { value: 'friends', label: 'Friends', icon: 'people-outline' },
+              { value: 'private', label: 'Only me', icon: 'lock-closed-outline' },
+            ]}
+          />
           <AppText variant="footnote" tone="secondary" style={styles.visibilityNote}>
             {form.isPrivate
               ? 'Only you can see this place. It stays off your friends’ maps, searches and favorites.'
-              : 'Your friends can see this place with your rating, notes and photos. Your own location is never shared.'}
+              : 'Your friends can see this place with your rating, notes and photos. Your own location is never shared.'}{' '}
+            <AppText variant="footnote" tone="accent" style={styles.link} onPress={() => router.push('/privacy')} accessibilityRole="link">
+              Privacy settings
+            </AppText>
           </AppText>
         </Section>
       </ScrollView>
@@ -472,36 +482,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </AppText>
       {children}
     </View>
-  );
-}
-
-function Segment({
-  icon,
-  label,
-  selected,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <PressableScale
-      onPress={() => {
-        haptics.selection();
-        onPress();
-      }}
-      scaleTo={0.97}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      style={[styles.segmentItem, selected && styles.segmentSelected]}
-    >
-      <Ionicons name={icon} size={16} color={selected ? colors.text : colors.textSecondary} />
-      <AppText variant="subheadMedium" tone={selected ? 'primary' : 'secondary'}>
-        {label}
-      </AppText>
-    </PressableScale>
   );
 }
 
@@ -619,26 +599,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(41, 45, 43, 0.72)',
   },
-  segment: {
-    flexDirection: 'row',
-    padding: 3,
-    borderRadius: radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: colors.fill,
-  },
-  segmentItem: {
-    flex: 1,
-    height: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: radius.md - 3,
-    borderCurve: 'continuous',
-  },
-  segmentSelected: {
-    backgroundColor: colors.surface,
-    boxShadow: '0px 1px 3px rgba(41, 45, 43, 0.12)',
+  link: {
+    textDecorationLine: 'underline',
   },
   visibilityNote: {
     marginTop: space.sm,
