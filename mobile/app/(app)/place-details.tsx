@@ -8,19 +8,24 @@ import { placesAPI } from '@/src/api/places';
 import { getErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/store/auth';
 import { useUserLocation } from '@/src/store/location';
-import { categoryIcon, categoryLabel, IconName } from '@/src/lib/categories';
+import { categoryIcon, categoryLabel } from '@/src/lib/categories';
 import { distanceInMeters, regionAround } from '@/src/lib/geo';
-import { formatDate, formatDistance } from '@/src/lib/format';
+import { formatDistance } from '@/src/lib/format';
 import { haptics } from '@/src/lib/haptics';
-import { openDirections, openInMaps, sharePlace } from '@/src/lib/maps';
+import { openInMaps, sharePlace } from '@/src/lib/maps';
 import { groupIntoSpots } from '@/src/lib/spots';
+import { useLargeText } from '@/src/lib/textScale';
 import { chooseOption } from '@/src/utils/chooseOption';
 import { confirmBlock, reportPlace } from '@/src/utils/safety';
 import { displayName, Place } from '@/src/types';
-import { AppText, Avatar, Button, EmptyState, IconButton, PressableScale, RatingStars, Tag } from '@/src/components/ui';
+import { AppText, EmptyState, PressableScale, RatingStars, Tag } from '@/src/components/ui';
 import { PhotoCarousel } from '@/src/components/place/PhotoGallery';
 import { AISummaryCard } from '@/src/components/AISummaryCard/AISummaryCard';
 import { SpotMarker } from '@/src/components/map/Markers';
+import { RecommendationCard } from '@/src/components/place/Recommendation';
+import { DirectionsButton } from '@/src/components/place/PlaceActions';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PlaceDetailsScreen() {
   const router = useRouter();
@@ -28,6 +33,8 @@ export default function PlaceDetailsScreen() {
   const placeId = Number(params.placeId);
   const { user: me } = useAuth();
   const { status: locationStatus, coords } = useUserLocation();
+  const insets = useSafeAreaInsets();
+  const largeText = useLargeText();
 
   const [place, setPlace] = useState<Place | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,15 +152,40 @@ export default function PlaceDetailsScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable
-              onPress={showMenu}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel={isOwner ? 'Edit or delete' : 'Report or block'}
-              style={styles.headerButton}
-            >
-              <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
-            </Pressable>
+            <View style={styles.headerButtons}>
+              <Pressable
+                onPress={() => sharePlace(place)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share"
+                style={styles.headerButton}
+              >
+                <Ionicons name="share-outline" size={21} color={colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={toggleFavorite}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={place.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                accessibilityState={{ selected: !!place.isFavorite }}
+                style={styles.headerButton}
+              >
+                <Ionicons
+                  name={place.isFavorite ? 'heart' : 'heart-outline'}
+                  size={22}
+                  color={place.isFavorite ? colors.favorite : colors.text}
+                />
+              </Pressable>
+              <Pressable
+                onPress={showMenu}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={isOwner ? 'Edit or delete' : 'Report or block'}
+                style={styles.headerButton}
+              >
+                <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -180,6 +212,8 @@ export default function PlaceDetailsScreen() {
               toolbarEnabled={false}
               liteMode
               pointerEvents="none"
+              mapPadding={{ top: 0, right: 0, bottom: HERO_OVERLAP + 4, left: 0 }}
+              legalLabelInsets={{ top: 0, right: 0, bottom: HERO_OVERLAP + 6, left: 14 }}
             >
               <SpotMarker spot={spot} selected favorite={false} onPress={() => {}} />
             </MapView>
@@ -209,67 +243,16 @@ export default function PlaceDetailsScreen() {
             {isOwner && place.isPrivate ? <Tag label="Only you" icon="lock-closed" /> : null}
           </View>
 
-          {/* Who it comes from */}
-          <PressableScale
-            disabled={isOwner || !place.user}
-            onPress={() => place.user && router.push({ pathname: '/friend', params: { userId: place.user.id } })}
-            scaleTo={0.985}
-            style={styles.byline}
-            accessibilityRole={isOwner ? undefined : 'button'}
-          >
-            {place.user && <Avatar user={place.user} size={36} />}
-            <View style={styles.bylineText}>
-              <AppText variant="subheadMedium">
-                {isOwner ? 'Saved by you' : `Recommended by ${place.user ? displayName(place.user) : 'a friend'}`}
-              </AppText>
-              <AppText variant="footnote" tone="tertiary">
-                {formatDate(place.createdAt)}
-              </AppText>
-            </View>
-            {!isOwner && <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />}
-          </PressableScale>
-
-          {/* Actions */}
-          <View style={styles.actions}>
-            <Button title="Directions" icon="navigate" onPress={() => openDirections(place)} style={styles.directions} haptic />
-            <IconButton
-              icon={place.isFavorite ? 'heart' : 'heart-outline'}
-              accessibilityLabel={place.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              onPress={toggleFavorite}
-              size={54}
-              iconSize={23}
-              color={place.isFavorite ? colors.favorite : colors.text}
-              background={place.isFavorite ? colors.favoriteSoft : undefined}
+          {/* Who recommends it, in their words */}
+          <View style={styles.recommendation}>
+            <RecommendationCard
+              place={place}
+              isMine={isOwner}
+              onPressPerson={
+                !isOwner && place.user ? () => router.push({ pathname: '/friend', params: { userId: place.user!.id } }) : undefined
+              }
             />
-            <IconButton icon="share-outline" accessibilityLabel="Share" onPress={() => sharePlace(place)} size={54} iconSize={22} />
           </View>
-
-          {/* Notes */}
-          {place.notes ? (
-            <View style={styles.section}>
-              <AppText variant="overline" tone="secondary" style={styles.sectionTitle}>
-                {isOwner ? 'Your notes' : 'Notes'}
-              </AppText>
-              <View style={styles.quote}>
-                <AppText variant="body" style={styles.quoteText}>
-                  {place.notes}
-                </AppText>
-              </View>
-            </View>
-          ) : null}
-
-          {/* What to order */}
-          {place.favoriteFood || place.favoriteDrink ? (
-            <View style={styles.section}>
-              <AppText variant="overline" tone="secondary" style={styles.sectionTitle}>
-                What to order
-              </AppText>
-              <View style={styles.orderRow}>
-                {place.favoriteFood ? <OrderCard icon="restaurant-outline" label="Dish" value={place.favoriteFood} /> : null}
-                {place.favoriteDrink ? <OrderCard icon="cafe-outline" label="Drink" value={place.favoriteDrink} /> : null}
-              </View>
-            </View>
-          ) : null}
 
           <AISummaryCard placeId={place.id} />
 
@@ -287,10 +270,18 @@ export default function PlaceDetailsScreen() {
                 <AppText variant="footnote" tone="tertiary" selectable>
                   {place.latitude.toFixed(5)}, {place.longitude.toFixed(5)}
                 </AppText>
+                {/* With large text there is no room beside the address, so the link goes under it */}
+                {largeText && (
+                  <AppText variant="subheadMedium" tone="accent" style={styles.openInMapsStacked}>
+                    Open in Maps
+                  </AppText>
+                )}
               </View>
-              <AppText variant="subheadMedium" tone="accent">
-                Open in Maps
-              </AppText>
+              {!largeText && (
+                <AppText variant="subheadMedium" tone="accent">
+                  Open in Maps
+                </AppText>
+              )}
             </PressableScale>
           </View>
 
@@ -304,21 +295,17 @@ export default function PlaceDetailsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* The main action stays in reach while reading */}
+      <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, space.md) }]}>
+        <BlurView intensity={30} tint="light" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(247, 245, 240, 0.88)' }]} />
+        <DirectionsButton place={place} distance={distance} />
+      </View>
     </View>
   );
 }
 
-function OrderCard({ icon, label, value }: { icon: IconName; label: string; value: string }) {
-  return (
-    <View style={styles.orderCard}>
-      <Ionicons name={icon} size={18} color={colors.rating} />
-      <AppText variant="caption" tone="tertiary" style={styles.orderLabel}>
-        {label}
-      </AppText>
-      <AppText variant="headline">{value}</AppText>
-    </View>
-  );
-}
+const HERO_OVERLAP = 26;
 
 const styles = StyleSheet.create({
   container: {
@@ -338,13 +325,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scroll: {
-    paddingBottom: space.xxxl,
+    paddingBottom: 120,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  recommendation: {
+    marginTop: space.lg,
+  },
+  actionBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: space.sm,
+    paddingHorizontal: screenPadding,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+    overflow: 'hidden',
   },
   mapHero: {
     height: 230,
   },
   body: {
-    marginTop: -26,
+    marginTop: -HERO_OVERLAP,
     paddingTop: space.xl,
     paddingHorizontal: screenPadding,
     borderTopLeftRadius: radius.sheet,
@@ -366,62 +372,11 @@ const styles = StyleSheet.create({
     gap: space.xs,
     marginTop: space.sm,
   },
-  byline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginTop: space.lg,
-    paddingVertical: space.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
-  },
-  bylineText: {
-    flex: 1,
-    gap: 1,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginTop: space.lg,
-  },
-  directions: {
-    flex: 1,
-  },
   section: {
     marginTop: space.xxl,
   },
   sectionTitle: {
     marginBottom: space.sm,
-  },
-  quote: {
-    paddingLeft: space.md,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.rating,
-  },
-  quoteText: {
-    fontSize: 17,
-    lineHeight: 26,
-  },
-  orderRow: {
-    flexDirection: 'row',
-    gap: space.sm,
-  },
-  orderCard: {
-    flex: 1,
-    padding: space.md,
-    borderRadius: radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
-    gap: 2,
-  },
-  orderLabel: {
-    marginTop: space.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
   },
   locationCard: {
     flexDirection: 'row',
@@ -446,6 +401,9 @@ const styles = StyleSheet.create({
   locationText: {
     flex: 1,
     gap: 2,
+  },
+  openInMapsStacked: {
+    marginTop: space.xxs,
   },
   report: {
     flexDirection: 'row',
