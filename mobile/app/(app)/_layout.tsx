@@ -41,6 +41,7 @@ export default function AppLayout() {
         <Stack.Screen name="friend" options={{ title: '' }} />
         <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', presentation: 'modal' }} />
         <Stack.Screen name="blocked-users" options={{ title: 'Blocked people' }} />
+        <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
       </Stack>
     </LocationProvider>
   );

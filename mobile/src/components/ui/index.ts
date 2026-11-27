@@ -10,6 +10,7 @@ export { PressableScale } from './PressableScale';
 export { RatingInput, RatingStars } from './Rating';
 export { LargeTitle, ScreenHeader, useScrollTitle } from './ScreenHeader';
 export { SectionHeader } from './SectionHeader';
+export { Segmented } from './Segmented';
 export { Skeleton, SkeletonRow } from './Skeleton';
 export { Tag } from './Tag';
 export { TextField } from './TextField';
