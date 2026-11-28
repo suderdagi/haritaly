@@ -8,11 +8,10 @@ import { displayName, Place } from '@/src/types';
 import { AppText } from '../ui/AppText';
 import { Avatar } from '../ui/Avatar';
 import { PressableScale } from '../ui/PressableScale';
-import { RatingStars } from '../ui/Rating';
 
 /**
- * Who recommends a place, in their own words: their face, their rating, their note and what to order.
- * Friends' picks are tinted lavender, your own eucalyptus, matching the map.
+ * Who recommends a place, in their own words: their face, their note and what to order. There is no star
+ * rating; saving a place is the recommendation. Friends' picks are tinted lavender, your own eucalyptus.
  */
 export function RecommendationCard({
   place,
@@ -60,12 +59,6 @@ export function RecommendationCard({
         {onPressPerson && <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />}
       </PressableScale>
 
-      {Number(place.rating) > 0 && (
-        <View style={styles.rating}>
-          <RatingStars value={place.rating} size={large ? 16 : 14} />
-        </View>
-      )}
-
       {place.notes ? (
         <AppText
           variant={large ? 'body' : 'callout'}
@@ -80,7 +73,7 @@ export function RecommendationCard({
         <View style={styles.picks}>
           {picks.map((p) => (
             <View key={p.icon} style={styles.pick}>
-              <Ionicons name={p.icon} size={14} color={colors.rating} />
+              <Ionicons name={p.icon} size={14} color={colors.pick} />
               <AppText variant="subheadMedium" numberOfLines={1} style={styles.pickText}>
                 {p.text}
               </AppText>
@@ -116,11 +109,8 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 1,
   },
-  rating: {
-    marginTop: space.sm,
-  },
   note: {
-    marginTop: space.xs,
+    marginTop: space.sm,
     color: colors.text,
   },
   noteLarge: {

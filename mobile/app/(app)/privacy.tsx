@@ -113,7 +113,7 @@ export default function PrivacyScreen() {
             ]}
           />
         </View>
-        <Point icon="people-outline">Friends see a shared place with your rating, notes and photos.</Point>
+        <Point icon="people-outline">Friends see a shared place with your notes and photos.</Point>
         <Point icon="lock-closed-outline">A private place stays off your friends’ maps, searches and favorites.</Point>
         <AppText variant="footnote" tone="tertiary" style={styles.cardNote}>
           You can change this for each place when you save it.{privateNote ? ` ${privateNote}` : ''}
@@ -133,7 +133,7 @@ export default function PrivacyScreen() {
             icon="sparkles"
             tint="social"
             title="AI summaries"
-            subtitle="Lets OpenAI read saved ratings and notes to summarize a place. No names or emails."
+            subtitle="Lets OpenAI read saved notes and favorites to summarize a place. No names or emails."
             switchValue={aiAllowed}
             onSwitchChange={async (allowed) => {
               setAiAllowed(allowed);

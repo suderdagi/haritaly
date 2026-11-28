@@ -7,7 +7,6 @@ export { EmptyState } from './EmptyState';
 export { IconButton } from './IconButton';
 export { ListGroup, ListRow } from './ListGroup';
 export { PressableScale } from './PressableScale';
-export { RatingInput, RatingStars } from './Rating';
 export { LargeTitle, ScreenHeader, useScrollTitle } from './ScreenHeader';
 export { SectionHeader } from './SectionHeader';
 export { Segmented } from './Segmented';

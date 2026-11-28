@@ -25,7 +25,6 @@ export interface Place {
   latitude: number;
   longitude: number;
   address?: string | null;
-  rating?: number | null;
   notes?: string | null;
   favoriteFood?: string | null;
   favoriteDrink?: string | null;
@@ -60,7 +59,6 @@ export type PlaceInput = {
   description?: string;
   category?: string;
   address?: string;
-  rating?: number;
   notes?: string;
   favoriteFood?: string;
   favoriteDrink?: string;

@@ -85,21 +85,21 @@ await befriend(ayse, mert);
 await befriend(zeynep, reviewer, { pendingOnly: true });
 
 await addPlaces(reviewer, [
-  { name: 'Karaköy Güllüoğlu', category: 'Restaurant', latitude: 41.0225, longitude: 28.9779, rating: 5, favoriteFood: 'Fıstıklı baklava', notes: 'Best baklava in town, go early.' },
-  { name: 'Maçka Parkı', category: 'Park', latitude: 41.0446, longitude: 28.9936, rating: 4, notes: 'Quiet and green, good for a Sunday walk.' },
+  { name: 'Karaköy Güllüoğlu', category: 'Restaurant', latitude: 41.0225, longitude: 28.9779, favoriteFood: 'Fıstıklı baklava', notes: 'Best baklava in town, go early.' },
+  { name: 'Maçka Parkı', category: 'Park', latitude: 41.0446, longitude: 28.9936, notes: 'Quiet and green, good for a Sunday walk.' },
 ]);
 
 const aysePlaces = await addPlaces(ayse, [
-  { name: 'Kronotrop', category: 'Cafe', latitude: 41.0315, longitude: 28.9822, rating: 4.5, favoriteDrink: 'Filtre kahve', favoriteFood: 'Cheesecake', notes: 'Sessiz, çalışmak için ideal. Hafta sonu kalabalık oluyor.' },
-  { name: 'Moda Sahili', category: 'Park', latitude: 40.9809, longitude: 29.0254, rating: 5, notes: 'Gün batımında yürüyüş için en güzel yer.' },
+  { name: 'Kronotrop', category: 'Cafe', latitude: 41.0315, longitude: 28.9822, favoriteDrink: 'Filtre kahve', favoriteFood: 'Cheesecake', notes: 'Sessiz, çalışmak için ideal. Hafta sonu kalabalık oluyor.' },
+  { name: 'Moda Sahili', category: 'Park', latitude: 40.9809, longitude: 29.0254, notes: 'Gün batımında yürüyüş için en güzel yer.' },
   // App Review usually happens in California: places near Cupertino make the "friends nearby" view visible there
-  { name: 'Apple Park Visitor Center', category: 'Attraction', latitude: 37.3327, longitude: -122.0053, rating: 4, notes: 'Nice view of the campus from the terrace.' },
+  { name: 'Apple Park Visitor Center', category: 'Attraction', latitude: 37.3327, longitude: -122.0053, notes: 'Nice view of the campus from the terrace.' },
 ]);
 
 const mertPlaces = await addPlaces(mert, [
-  { name: 'Kronotrop Cihangir', category: 'Cafe', latitude: 41.0316, longitude: 28.9823, rating: 4, favoriteDrink: 'Cortado', notes: 'Kahve harika ama oturacak yer az.' },
-  { name: 'Galata Kulesi', category: 'Attraction', latitude: 41.0256, longitude: 28.9741, rating: 4, notes: 'Gün batımından önce git, sıra kısalıyor.' },
-  { name: 'Cupertino Memorial Park', category: 'Park', latitude: 37.3239, longitude: -122.0444, rating: 4.5, notes: 'Great for a walk around the pond.' },
+  { name: 'Kronotrop Cihangir', category: 'Cafe', latitude: 41.0316, longitude: 28.9823, favoriteDrink: 'Cortado', notes: 'Kahve harika ama oturacak yer az.' },
+  { name: 'Galata Kulesi', category: 'Attraction', latitude: 41.0256, longitude: 28.9741, notes: 'Gün batımından önce git, sıra kısalıyor.' },
+  { name: 'Cupertino Memorial Park', category: 'Park', latitude: 37.3239, longitude: -122.0444, notes: 'Great for a walk around the pond.' },
 ]);
 
 for (const place of [aysePlaces[1], mertPlaces[1]].filter(Boolean)) {

@@ -81,17 +81,17 @@ beforeAll(async () => {
   await accept.POST(request(`/api/friends/${pending.id}/accept`, { method: 'POST', token: ali.token }), params(pending.id));
 
   sudePlaceId = await savePlace(sude.token, {
-    name: 'Kronotrop', ...KRONOTROP, rating: 5, favoriteFood: 'Cheesecake', notes: 'Harika kahve',
+    name: 'Kronotrop', ...KRONOTROP, favoriteFood: 'Cheesecake', notes: 'Harika kahve',
   });
   // Ali saved the same café separately, a few meters away, with a slightly different name
   await savePlace(ali.token, {
     name: 'Kronotrop Cihangir', latitude: KRONOTROP.latitude + 0.0002, longitude: KRONOTROP.longitude,
-    rating: 3, favoriteDrink: 'Filtre kahve',
+    favoriteDrink: 'Filtre kahve',
   });
   // Not friends with Sude: must never reach the prompt
-  await savePlace(stranger.token, { name: 'Kronotrop', ...KRONOTROP, rating: 1, notes: 'SECRET NOTE' });
+  await savePlace(stranger.token, { name: 'Kronotrop', ...KRONOTROP, notes: 'SECRET NOTE' });
   // Friend's entry for a different place nearby: must not be matched
-  await savePlace(ali.token, { name: 'Petra Roasting', ...KRONOTROP, rating: 4, notes: 'Other place' });
+  await savePlace(ali.token, { name: 'Petra Roasting', ...KRONOTROP, notes: 'Other place' });
 });
 
 beforeEach(() => {
@@ -127,7 +127,7 @@ describe('place summary', () => {
   });
 
   it('builds a new summary when a friend edits their entry', async () => {
-    await db.place.updateMany({ where: { userId: ali.id, name: 'Kronotrop Cihangir' }, data: { rating: 4 } });
+    await db.place.updateMany({ where: { userId: ali.id, name: 'Kronotrop Cihangir' }, data: { notes: 'Cortado da güzel' } });
     llm.mockResolvedValue(goodAnswer);
 
     const { json } = await getSummary(sude.token, sudePlaceId);
@@ -136,7 +136,7 @@ describe('place summary', () => {
   });
 
   it('rejects a malformed model answer with 502 and does not cache it', async () => {
-    await db.place.updateMany({ where: { userId: ali.id, name: 'Kronotrop Cihangir' }, data: { rating: 2 } });
+    await db.place.updateMany({ where: { userId: ali.id, name: 'Kronotrop Cihangir' }, data: { notes: 'Artık çok kalabalık' } });
     llm.mockResolvedValue({ summary: '', highlights: 'not an array' });
 
     const { status } = await getSummary(sude.token, sudePlaceId);

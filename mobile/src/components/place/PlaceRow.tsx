@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, space } from '@/src/theme';
-import { firstName, formatDistance, formatRating, possessive } from '@/src/lib/format';
+import { firstName, formatDistance, possessive } from '@/src/lib/format';
 import { categoryLabel } from '@/src/lib/categories';
 import { Place } from '@/src/types';
 import { AppText } from '../ui/AppText';
@@ -20,11 +20,14 @@ export interface PlaceRowProps {
   isFavorite?: boolean;
 }
 
-/** One place in a list: what it is, whose it is, how it was rated and how far it is. */
+/**
+ * One place in a list: what it is, whose it is, how far it is and, where a star rating would usually be,
+ * how many people saved it. Haritaly has no ratings: a place is only ever saved because someone loves it.
+ */
 export function PlaceRow({ place, isMine, onPress, distance, savedBy, isFavorite }: PlaceRowProps) {
-  const rating = formatRating(place.rating);
   const who = isMine ? 'Yours' : `${possessive(firstName(place.user))} pick`;
-  const meta = [place.category && categoryLabel(place.category), savedBy && savedBy > 1 ? `Saved by ${savedBy}` : who].filter(Boolean).join(' · ');
+  const meta = [place.category && categoryLabel(place.category), who].filter(Boolean).join(' · ');
+  const shared = savedBy !== undefined && savedBy > 1;
   const away = formatDistance(distance);
 
   return (
@@ -33,7 +36,9 @@ export function PlaceRow({ place, isMine, onPress, distance, savedBy, isFavorite
       scaleTo={0.985}
       dimTo={0.75}
       accessibilityRole="button"
-      accessibilityLabel={[place.name, meta, rating && `rated ${rating}`, away && `${away} away`].filter(Boolean).join(', ')}
+      accessibilityLabel={[place.name, meta, shared && `saved by ${savedBy} people`, away && `${away} away`]
+        .filter(Boolean)
+        .join(', ')}
       style={styles.row}
     >
       <PlaceGlyph category={place.category} owner={isMine ? 'mine' : 'friend'} />
@@ -52,11 +57,11 @@ export function PlaceRow({ place, isMine, onPress, distance, savedBy, isFavorite
         </AppText>
       </View>
       <View style={styles.trailing}>
-        {rating && (
-          <View style={styles.rating}>
-            <Ionicons name="star" size={12} color={colors.rating} />
-            <AppText variant="footnote" style={styles.ratingText}>
-              {rating}
+        {shared && (
+          <View style={styles.savedBy}>
+            <Ionicons name="people" size={13} color={colors.social} />
+            <AppText variant="footnote" style={styles.savedByText}>
+              {savedBy}
             </AppText>
           </View>
         )}
@@ -93,12 +98,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 3,
   },
-  rating: {
+  savedBy: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
-  ratingText: {
+  savedByText: {
     fontWeight: '600',
     color: colors.text,
   },

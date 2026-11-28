@@ -23,9 +23,12 @@ describe('CreatePlaceSchema', () => {
     expect(CreatePlaceSchema.safeParse({ ...valid, latitude: 120 }).success).toBe(false);
   });
 
-  it('rejects unknown categories and ratings above 5', () => {
+  it('rejects unknown categories', () => {
     expect(CreatePlaceSchema.safeParse({ ...valid, category: 'Spaceship' }).success).toBe(false);
-    expect(CreatePlaceSchema.safeParse({ ...valid, rating: 6 }).success).toBe(false);
+  });
+
+  it('drops a rating sent by an older client', () => {
+    expect(CreatePlaceSchema.parse({ ...valid, rating: 4 })).not.toHaveProperty('rating');
   });
 });
 

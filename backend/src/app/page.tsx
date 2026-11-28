@@ -12,7 +12,7 @@ export default function HomePage() {
       <section className="features">
         <div>
           <h3>Your map</h3>
-          <p className="muted">Save a café, a park or a restaurant with a rating, notes, your favorite dish and photos.</p>
+          <p className="muted">Save the cafés, parks and restaurants you love, with notes, your favorite dish and photos.</p>
         </div>
         <div>
           <h3>Friends only</h3>

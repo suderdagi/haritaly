@@ -1,6 +1,6 @@
 # Haritaly
 
-Haritaly is a social map app. You save the places you like (a café, a park, a restaurant) with notes, a rating and photos, and you see the places your friends saved around you.
+Haritaly is a social map app. You save the places you love (a café, a park, a restaurant) with notes and photos, and you see the places your friends love around you. There are no ratings or bad reviews: a place is on the map because someone liked it, and the more people saved it, the more it says.
 
 The repository has two parts:
 
@@ -12,15 +12,15 @@ The repository has two parts:
 ## Features
 
 - Sign up and log in with email and password (bcrypt + JWT)
-- Save a place where you are, where you dropped a pin, or anywhere you find with the location picker (address search or moving a pin), with category, rating, favorite food/drink, notes and photos
+- Save a place where you are, where you dropped a pin, or anywhere you find with the location picker (address search or moving a pin), with category, favorite food/drink, notes and photos
 - Share a place with your friends or keep it private, visible only to you
 - Edit or delete your own places
 - Find people by name or email, send friend requests, accept or reject them, and open a friend's profile to see the places they share
 - **The map:** Apple's muted map style with markers that tell your places (solid eucalyptus) from friends' (lavender edge with the friend's avatar) and show the category; a place saved by several friends becomes one marker, and its sheet shows what each of them said; markers close together merge into clusters; search, an All / Yours / Friends switch, category filters, and a floating sheet with the places around you
-- **Who recommended it:** every place leads with the person behind it: their avatar, "Mert's pick", their stars, note and what to order
+- **Who recommended it:** every place leads with the person behind it: their avatar, "Mert's pick", their note and what to order; lists show how many people saved a place where other apps show stars
 - See friends' places in the area shown on the map; panning loads the places saved there
 - Add your own or friends' places to favorites
-- **AI summary:** one tap summarizes what you and your friends saved about a place (ratings, notes, favorite food and drinks) with an LLM, after the user agrees to share the notes with OpenAI
+- **AI summary:** one tap summarizes what you and your friends saved about a place (notes, favorite food and drinks) with an LLM, after the user agrees to share the notes with OpenAI
 - Places are only visible to you and your friends, and private places only to you
 - **Privacy & visibility:** one screen explains location access, sets who sees new places by default, and links to blocked people, the policies and account deletion. Location is explained before iOS asks, used only while the app is open, and never shown to friends
 - **Safety:** report a friend's place or note and block its author from the map sheet or the place page, or block someone from their profile (blocking ends the friendship, stops requests and hides each other from search); manage blocked users
@@ -72,7 +72,7 @@ Calculating the distance to every place in the database would get slow as the ta
 
 **How the AI summary works**
 
-Friends often save the same café separately, each with their own rating and notes. `GET /api/places/:id/summary` turns those entries into a short summary:
+Friends often save the same café separately, each with their own notes and favorites. `GET /api/places/:id/summary` turns those entries into a short summary:
 
 1. **Find the entries.** Places saved by you or your friends within 100 m whose names match (`Kronotrop` matches `Kronotrop Cihangir`; case, Turkish characters and punctuation are ignored). Strangers' entries are never included.
 2. **Build the prompt.** Friends are labeled "Friend 1", "Friend 2", so no names or emails are sent to the AI provider. The system prompt tells the model to use only the given entries and to treat them as data, not instructions.

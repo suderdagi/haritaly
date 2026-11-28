@@ -15,7 +15,6 @@ import { AppText } from '../ui/AppText';
 import { Avatar, AvatarStack } from '../ui/Avatar';
 import { IconButton } from '../ui/IconButton';
 import { PressableScale } from '../ui/PressableScale';
-import { RatingStars } from '../ui/Rating';
 import { Tag } from '../ui/Tag';
 import { PlaceGlyph } from '../place/PlaceGlyph';
 import { RecommendationCard } from '../place/Recommendation';
@@ -108,7 +107,6 @@ export function PlaceSheet({
                     <AppText variant="headline" numberOfLines={1} style={styles.entryName}>
                       {mine ? 'You' : entry.user ? displayName(entry.user) : 'A friend'}
                     </AppText>
-                    <RatingStars value={entry.rating} size={11} showValue={false} />
                   </PressableScale>
                   {entry.notes || entry.favoriteFood || entry.favoriteDrink ? (
                     <AppText variant="callout" style={styles.entryNote} numberOfLines={3}>
