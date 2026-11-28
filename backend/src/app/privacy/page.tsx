@@ -38,8 +38,8 @@ export default function PrivacyPage() {
         <p>
           With your permission, the app uses your device’s precise location while you are using it: to center the map,
           to store the coordinates of a place when you save it where you are, and to load your friends’ places in the
-          area shown on the map. The map area is sent to our server only to answer that request and is not stored. We
-          don’t use your location in the background and we don’t keep a location history.
+          area shown on the map. For that request the app sends only the center of the map area, rounded to about 1 km,
+          and it is not stored. We don’t use your location in the background and we don’t keep a location history.
         </p>
         <h3>Technical data</h3>
         <p>
@@ -141,8 +141,8 @@ export default function PrivacyPage() {
           <li>
             <strong>Konum:</strong> İzin verirseniz uygulama, siz kullanırken cihazınızın hassas konumunu haritayı
             ortalamak, bulunduğunuz yerde kaydettiğiniz yerin koordinatlarını saklamak ve haritada görünen bölgedeki
-            arkadaş yerlerini yüklemek için kullanır. Harita bölgesi sunucuya yalnızca bu istek için gönderilir ve
-            saklanmaz. Konumunuzu arka planda kullanmayız ve konum geçmişi tutmayız.
+            arkadaş yerlerini yüklemek için kullanır. Bu istek için sunucuya yalnızca harita bölgesinin yaklaşık 1 km’ye
+            yuvarlanmış merkezi gönderilir ve saklanmaz. Konumunuzu arka planda kullanmayız ve konum geçmişi tutmayız.
           </li>
           <li>
             <strong>Teknik veriler:</strong> Barındırma sağlayıcımız güvenlik ve hata ayıklama için standart istek

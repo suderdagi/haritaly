@@ -118,7 +118,7 @@ The sign-in illustration is faint contour lines of two hills and a dotted route 
 ## Privacy patterns
 
 - Location is requested only when the user taps something that needs it, after a short explanation (what it is used for, only while the app is open, never shown to friends). The only button on that explanation continues to the system prompt.
-- Only "while using the app" access. The position stays on the phone: only places the user chooses to save reach the server, and Haritaly never shows anyone's position to friends.
+- Only "while using the app" access. The exact position stays on the phone: to load friends' places, the app sends only the center of the map area in view, rounded to about a kilometre (two decimals), and the server does not store it. Saved places keep their exact coordinates, and Haritaly never shows anyone's position to friends.
 - Without location, the map can still be moved and searched, and places can be added with the picker.
 - Each place can be shared with friends or kept private, and the default for new places is a setting.
 - **Privacy & visibility** (Profile) gathers it in plain words: location access and what it is used for, who sees new places, how many are private, blocked people, the policies and account deletion.

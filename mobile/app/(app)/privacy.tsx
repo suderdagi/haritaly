@@ -82,7 +82,10 @@ export default function PrivacyScreen() {
           </View>
         </View>
         <Point icon="map-outline">Used only while the app is open: to center the map, show distances and save a place where you are.</Point>
-        <Point icon="eye-off-outline">Your position stays on this phone. Only the places you choose to save reach our server, and friends see only those.</Point>
+        <Point icon="eye-off-outline">
+          Your exact position stays on this phone. To load friends’ places, Haritaly sends only the area you’re looking
+          at, rounded to about 1 km, and doesn’t store it. Friends see only the places you share.
+        </Point>
         <Point icon="time-outline">Never used in the background.</Point>
         <Button
           title={status === 'undetermined' ? 'Continue' : 'Open Settings'}
