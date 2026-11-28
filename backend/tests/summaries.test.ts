@@ -20,14 +20,15 @@ describe('place name matching', () => {
 
 describe('prompt', () => {
   const mentions = [
-    { id: 1, rating: 5, notes: 'Harika', description: null, favoriteFood: 'Cheesecake', favoriteDrink: null },
-    { id: 2, rating: 3, notes: null, description: null, favoriteFood: null, favoriteDrink: 'Filtre kahve' },
+    { id: 1, notes: 'Harika', description: null, favoriteFood: 'Cheesecake', favoriteDrink: null },
+    { id: 2, notes: null, description: null, favoriteFood: null, favoriteDrink: 'Filtre kahve' },
   ];
 
   it('labels friends anonymously and includes their entries', () => {
     const prompt = buildPrompt('Kronotrop', mentions);
-    expect(prompt).toContain('Friend 1: rating 5/5; favorite food: Cheesecake; notes: Harika');
-    expect(prompt).toContain('Friend 2: rating 3/5; favorite drink: Filtre kahve');
+    expect(prompt).toContain('Friend 1: favorite food: Cheesecake; notes: Harika');
+    expect(prompt).toContain('Friend 2: favorite drink: Filtre kahve');
+    expect(prompt).not.toContain('rating');
   });
 
   it('produces a new cache key when the input or model changes', () => {

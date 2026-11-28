@@ -42,7 +42,7 @@ export const CreatePlaceSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   address: optionalText(200),
-  rating: z.number().min(0).max(5).optional().nullable(),
+  // Places have no ratings: Haritaly only holds places people love. A rating sent by an older client is dropped.
   notes: optionalText(1000),
   favoriteFood: optionalText(100),
   favoriteDrink: optionalText(100),

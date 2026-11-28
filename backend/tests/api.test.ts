@@ -109,6 +109,7 @@ describe('places', () => {
     const json = await res.json();
     expect(res.status).toBe(201);
     expect(json.data.latitude).toBe(40.9809);
+    expect(json.data).not.toHaveProperty('rating'); // places have no ratings
     expect(json.data.user.password).toBeUndefined();
     placeId = json.data.id;
   });
