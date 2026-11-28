@@ -11,6 +11,7 @@ Everything below lives in code. Tokens are in [`mobile/src/theme/tokens.ts`](../
 3. **Native first.** Native navigation, sheets, action sheets, alerts and permission prompts. Custom components follow iOS proportions and continuous ("squircle") corners.
 4. **Quiet hierarchy.** Semibold headings rather than bold, generous spacing, and hairlines instead of heavy borders.
 5. **Honest UI.** No control is shown that does not work. Empty, loading and error states are designed like any other state.
+6. **Only good places.** There are no star ratings or bad reviews. Saving a place is the recommendation, and how many people saved it is the signal, shown where other apps show stars.
 
 ## Color
 
@@ -26,7 +27,7 @@ Everything below lives in code. Tokens are in [`mobile/src/theme/tokens.ts`](../
 | `accent` | `#4E6A55` deep eucalyptus | Your places, links, positive states |
 | `social` | `#7A7191` deep lavender | Friends and everything social |
 | `favorite` | `#A86F63` deep rose | Favorites |
-| `rating` | `#9C8250` deep champagne | Stars, editorial accents |
+| `pick` | `#9C8250` deep champagne | What to order: a friend's dish or drink pick |
 | `danger` | `#B2493B` | Destructive actions |
 
 Each accent also has a pale `…Soft` tint for backgrounds, such as icon tiles and tags. The pastels from the brief (sage `#B1BBA8`, eucalyptus `#778779`, lavender `#B9B3C8`, rose `#D6BDB6`, champagne `#C8B795`) are kept for large soft areas. Text and icons use the deeper versions, because the pastels are too light to read on ivory. Text colors meet WCAG AA (4.5:1) on the background.
@@ -57,7 +58,7 @@ All text goes through `AppText`, which takes a `variant` and a `tone`.
 - **Radius:** 6 for tags, 10–14 for inputs and buttons, 20 for cards, 28 for sheets, capsules for chips. Nested shapes keep concentric corners. iOS gets continuous corners (`borderCurve: 'continuous'`).
 - **Shadows:** two layers, a tight contact shadow plus a soft ambient one, tinted charcoal rather than black. Cards on the background are flat with a hairline. Shadows are kept for things that float: map controls, markers, sheets.
 - **Translucency:** only over the map (search, filters, map buttons), where a solid surface would hide too much.
-- **Motion:** pressed elements ease to 97% and dim slightly, then spring back. Selected markers grow with a spring. Durations are 140–320 ms. Haptics mark a choice (chips, stars, markers) or a result (saved, error), never plain navigation.
+- **Motion:** pressed elements ease to 97% and dim slightly, then spring back. Selected markers grow with a spring. Durations are 140–320 ms. Haptics mark a choice (chips, filters, markers) or a result (saved, error), never plain navigation.
 
 ## Components
 
@@ -69,14 +70,13 @@ All text goes through `AppText`, which takes a `variant` and a `tone`.
 | `TextField` | Soft field with label, icon, error, hint and character count. Focus shows a charcoal outline |
 | `Card`, `ListGroup`, `ListRow` | Paper surfaces and iOS-style grouped rows with tinted icon tiles, values, switches and chevrons |
 | `Avatar`, `AvatarStack` | Initials on a pastel chosen from the person's ID, or their photo |
-| `RatingStars`, `RatingInput` | Half-star display and tap-to-rate input (an adjustable element for VoiceOver) |
 | `Tag`, `SectionHeader`, `EmptyState`, `Skeleton` | Small labels, section labels, designed empty states, loading placeholders |
 | `ScreenHeader`, `LargeTitle` | Large title that hands over to a small centered title on scroll |
 | `Segmented` | Two or three options in one control (radio group for VoiceOver), used for who can see a place |
 | `PlaceGlyph`, `PlaceRow` | A place in a list, styled to match its map marker |
 | `MarkerArt` | The marker drawing, shared by the map and the sign-in illustration |
 | `OwnerSwitch`, `CategoryRail` | Map filters: a glass switch for All / Yours / Friends with a sliding thumb, and icon-only category buttons where the chosen one opens into a labeled pill |
-| `RecommendationCard` | Who recommended a place: their avatar, "Mert's pick", the date, their stars, their note in quotes and what to order. Lavender for friends, eucalyptus for you |
+| `RecommendationCard` | Who recommended a place: their avatar, "Mert's pick", the date, their note in quotes and what to order. Lavender for friends, eucalyptus for you |
 | `DirectionsButton`, `FavoriteButton` | The main actions of a place: a charcoal directions pill (with the distance when there is room) and a heart that pops when filled |
 | `LocationExplainer` | The short explanation shown once before the iOS location prompt |
 
@@ -111,7 +111,7 @@ The sign-in illustration is faint contour lines of two hills and a dotted route 
 - Text scales with Dynamic Type, including the accessibility sizes. Fixed-height chrome (tab bar, chips, filters, markers) may grow to 1.35× and buttons to 1.5×, so the layout keeps its shape.
 - Layouts wrap rather than truncate: titles and place names take two lines, the sheet's legend moves under its title, and side-by-side rows (the location card's "Open in Maps") stack at the largest sizes (`useLargeText`).
 - Each screen was checked at the largest standard size (1.35×) and at an accessibility size (2×).
-- Controls have VoiceOver labels and states (selected, disabled, busy). The rating input is an adjustable element.
+- Controls have VoiceOver labels and states (selected, disabled, busy).
 - Information never relies on color alone: markers also differ by badge, and links are underlined inside sentences.
 - Touch targets are at least 44 points, using hit slop where the visible control is smaller.
 

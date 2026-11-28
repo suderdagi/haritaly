@@ -29,8 +29,8 @@ export default function PrivacyPage() {
         </p>
         <h3>Places you save</h3>
         <p>
-          The name, category, address, rating, notes, favorite food and drink, the photos you attach, and the coordinates
-          of the place.
+          The name, category, address, notes, favorite food and drink, the photos you attach, and the coordinates of the
+          place.
         </p>
         <h3>Friends and safety</h3>
         <p>Friend requests and friendships, your favorites, the users you block and the reports you send.</p>
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
 
         <h2>Who can see your data</h2>
         <ul>
-          <li>Your places, notes, ratings and photos are shown only to you and the people you accept as friends.</li>
+          <li>Your places, notes and photos are shown only to you and the people you accept as friends.</li>
           <li>
             Other signed-in users can find you by name or email address so they can send you a friend request. Search
             results show your name, email address and bio.
@@ -70,8 +70,8 @@ export default function PrivacyPage() {
         <h2>AI summaries (OpenAI)</h2>
         <p>
           A place can show a short “What friends say” summary. It is created only when you tap <em>Summarize with AI</em>{' '}
-          and agree to the explanation shown in the app. We then send the ratings, notes, descriptions and favorite food
-          and drink that you and your friends saved for that place to OpenAI, which writes the summary. Names, email
+          and agree to the explanation shown in the app. We then send the notes, descriptions and favorite food and drink
+          that you and your friends saved for that place to OpenAI, which writes the summary. Names, email
           addresses and photos are not sent: entries are labeled “Friend 1”, “Friend 2” and so on. Your own entries can be
           part of a summary that one of your friends requests for the same place. Summaries are cached on our server and
           deleted when any account is deleted. OpenAI processes this data as our service provider under its API terms.
@@ -131,7 +131,7 @@ export default function PrivacyPage() {
             özetini saklarız) ve eklemeyi seçtiğiniz ad, soyad ve biyografi.
           </li>
           <li>
-            <strong>Kaydettiğiniz yerler:</strong> ad, kategori, adres, puan, notlar, favori yemek ve içecek, eklediğiniz
+            <strong>Kaydettiğiniz yerler:</strong> ad, kategori, adres, notlar, favori yemek ve içecek, eklediğiniz
             fotoğraflar ve yerin koordinatları.
           </li>
           <li>
@@ -158,7 +158,7 @@ export default function PrivacyPage() {
 
         <h3>Verilerinizi kimler görebilir</h3>
         <ul>
-          <li>Yerleriniz, notlarınız, puanlarınız ve fotoğraflarınız yalnızca size ve arkadaş olarak kabul ettiğiniz kişilere gösterilir.</li>
+          <li>Yerleriniz, notlarınız ve fotoğraflarınız yalnızca size ve arkadaş olarak kabul ettiğiniz kişilere gösterilir.</li>
           <li>
             Giriş yapmış diğer kullanıcılar size arkadaşlık isteği gönderebilmek için sizi ad veya e-posta adresinizle
             bulabilir. Arama sonuçlarında adınız, e-posta adresiniz ve biyografiniz görünür.
@@ -174,7 +174,7 @@ export default function PrivacyPage() {
         <p>
           Bir yer için kısa bir “What friends say” özeti oluşturulabilir. Özet yalnızca siz <em>Summarize with AI</em>{' '}
           düğmesine dokunup uygulamada gösterilen açıklamayı onayladığınızda oluşturulur. Bu durumda sizin ve
-          arkadaşlarınızın o yer için kaydettiği puanlar, notlar, açıklamalar ve favori yemek ve içecekler özeti yazması
+          arkadaşlarınızın o yer için kaydettiği notlar, açıklamalar ve favori yemek ve içecekler özeti yazması
           için OpenAI’a gönderilir. Ad, e-posta ve fotoğraf gönderilmez; kayıtlar “Friend 1”, “Friend 2” gibi
           etiketlenir. Arkadaşlarınızdan biri aynı yer için özet istediğinde sizin kayıtlarınız da özete dahil olabilir.
           Özetler sunucumuzda önbelleğe alınır ve herhangi bir hesap silindiğinde silinir. OpenAI bu verileri API
