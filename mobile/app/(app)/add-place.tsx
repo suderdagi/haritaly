@@ -29,7 +29,7 @@ import { getDefaultVisibility } from '@/src/lib/preferences';
 import { preparePhoto } from '@/src/utils/preparePhoto';
 import { chooseOption } from '@/src/utils/chooseOption';
 import { Photo, Place } from '@/src/types';
-import { AppText, Button, Chip, PressableScale, RatingInput, Segmented, TextField } from '@/src/components/ui';
+import { AppText, Button, Chip, PressableScale, Segmented, TextField } from '@/src/components/ui';
 import { LocationPreview } from '@/src/components/place/LocationPreview';
 
 const MAX_PHOTOS = 5;
@@ -38,7 +38,6 @@ interface Form {
   name: string;
   category: string;
   address: string;
-  rating: number;
   favoriteFood: string;
   favoriteDrink: string;
   notes: string;
@@ -49,7 +48,6 @@ const EMPTY: Form = {
   name: '',
   category: '',
   address: '',
-  rating: 0,
   favoriteFood: '',
   favoriteDrink: '',
   notes: '',
@@ -105,7 +103,6 @@ export default function AddPlaceScreen() {
           name: place.name,
           category: place.category ?? '',
           address: place.address ?? '',
-          rating: Number(place.rating ?? 0),
           favoriteFood: place.favoriteFood ?? '',
           favoriteDrink: place.favoriteDrink ?? '',
           notes: place.notes ?? '',
@@ -238,7 +235,6 @@ export default function AddPlaceScreen() {
       name,
       category: form.category || undefined,
       address: form.address.trim() || undefined,
-      rating: form.rating > 0 ? form.rating : undefined,
       favoriteFood: form.favoriteFood.trim() || undefined,
       favoriteDrink: form.favoriteDrink.trim() || undefined,
       notes: form.notes.trim() || undefined,
@@ -375,10 +371,6 @@ export default function AddPlaceScreen() {
           </View>
         </Section>
 
-        <Section title="Your rating">
-          <RatingInput value={form.rating} onChange={(value) => update('rating', value)} />
-        </Section>
-
         <Section title="What to order">
           <TextField
             icon="restaurant-outline"
@@ -451,7 +443,7 @@ export default function AddPlaceScreen() {
           <AppText variant="footnote" tone="secondary" style={styles.visibilityNote}>
             {form.isPrivate
               ? 'Only you can see this place. It stays off your friends’ maps, searches and favorites.'
-              : 'Your friends can see this place with your rating, notes and photos. Your own location is never shared.'}{' '}
+              : 'Your friends can see this place with your notes and photos. Your own location is never shared.'}{' '}
             <AppText variant="footnote" tone="accent" style={styles.link} onPress={() => router.push('/privacy')} accessibilityRole="link">
               Privacy settings
             </AppText>

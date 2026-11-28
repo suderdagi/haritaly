@@ -33,7 +33,7 @@ export function ListGroup({
   );
 }
 
-type Tint = 'neutral' | 'accent' | 'social' | 'favorite' | 'danger' | 'rating';
+type Tint = 'neutral' | 'accent' | 'social' | 'favorite' | 'danger' | 'pick';
 
 const tints: Record<Tint, { bg: string; fg: string }> = {
   neutral: { bg: colors.fill, fg: colors.text },
@@ -41,7 +41,7 @@ const tints: Record<Tint, { bg: string; fg: string }> = {
   social: { bg: colors.socialSoft, fg: colors.social },
   favorite: { bg: colors.favoriteSoft, fg: colors.favorite },
   danger: { bg: colors.dangerSoft, fg: colors.danger },
-  rating: { bg: colors.ratingSoft, fg: colors.rating },
+  pick: { bg: colors.pickSoft, fg: colors.pick },
 };
 
 export interface ListRowProps {

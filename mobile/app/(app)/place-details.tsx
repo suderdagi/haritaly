@@ -18,7 +18,7 @@ import { useLargeText } from '@/src/lib/textScale';
 import { chooseOption } from '@/src/utils/chooseOption';
 import { confirmBlock, reportPlace } from '@/src/utils/safety';
 import { displayName, Place } from '@/src/types';
-import { AppText, EmptyState, PressableScale, RatingStars, Tag } from '@/src/components/ui';
+import { AppText, EmptyState, PressableScale, Tag } from '@/src/components/ui';
 import { PhotoCarousel } from '@/src/components/place/PhotoGallery';
 import { AISummaryCard } from '@/src/components/AISummaryCard/AISummaryCard';
 import { SpotMarker } from '@/src/components/map/Markers';
@@ -232,16 +232,16 @@ export default function PlaceDetailsScreen() {
             {place.name}
           </AppText>
 
-          <View style={styles.metaRow}>
-            <RatingStars value={place.rating} size={15} />
-            {distance && (
-              <AppText variant="subhead" tone="secondary">
-                {Number(place.rating) > 0 ? '·  ' : ''}
-                {distance} away
-              </AppText>
-            )}
-            {isOwner && place.isPrivate ? <Tag label="Only you" icon="lock-closed" /> : null}
-          </View>
+          {(distance || (isOwner && place.isPrivate)) && (
+            <View style={styles.metaRow}>
+              {distance && (
+                <AppText variant="subhead" tone="secondary">
+                  {distance} away
+                </AppText>
+              )}
+              {isOwner && place.isPrivate ? <Tag label="Only you" icon="lock-closed" /> : null}
+            </View>
+          )}
 
           {/* Who recommends it, in their words */}
           <View style={styles.recommendation}>

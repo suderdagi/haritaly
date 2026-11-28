@@ -5,7 +5,7 @@ import { distanceInMeters } from './geo';
  * Two kinds of grouping keep the map readable:
  *
  * 1. Spots. When you and your friends save the same place, each of you has your own entry (with your own
- *    rating and notes). Entries with matching names within SAME_PLACE_RADIUS_M are one spot, drawn as one
+ *    notes and favorites). Entries with matching names within SAME_PLACE_RADIUS_M are one spot, drawn as one
  *    marker that says how many people saved it. Uses the same rules as the server's AI summaries.
  *
  * 2. Clusters. When zoomed out, spots that would overlap on screen are merged into a numbered circle;

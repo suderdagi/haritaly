@@ -31,13 +31,6 @@ export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** Rating as shown next to stars: "4.5", "4" */
-export function formatRating(rating?: number | string | null): string | null {
-  const value = Number(rating ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
 /** "Ayşe", "Ayşe and Mert", "Ayşe, Mert and 2 others" */
 export function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? '';

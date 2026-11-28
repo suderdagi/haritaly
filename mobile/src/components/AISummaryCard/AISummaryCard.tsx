@@ -103,12 +103,12 @@ export function AISummaryCard({ placeId }: { placeId: number }) {
         </>
       ) : summary?.status === 'NOT_ENOUGH_DATA' ? (
         <AppText variant="callout" tone="secondary">
-          Not enough notes or ratings yet. Add yours, or wait for friends to save this place.
+          Not enough notes yet. Add yours, or wait for friends to save this place.
         </AppText>
       ) : (
         <>
           <AppText variant="callout" tone="secondary">
-            A short summary of the ratings, notes and favorites you and your friends saved here, written by OpenAI.
+            A short summary of the notes and favorites you and your friends saved here, written by OpenAI.
           </AppText>
           {error && (
             <AppText variant="footnote" tone="danger" style={styles.error}>

@@ -8,7 +8,7 @@ import { TextStyle } from 'react-native';
  *   eucalyptus → your own places and positive states
  *   lavender   → friends and everything social
  *   rose       → favorites
- *   champagne  → ratings
+ *   champagne  → what to order (a friend's dish or drink pick)
  * The "deep" variants are the ones used for text and icons, because the pastels themselves are too light
  * to read on ivory. Text colors were checked for at least 4.5:1 contrast on the background.
  */
@@ -72,8 +72,8 @@ export const colors = {
   socialSoft: palette.lavenderSoft,
   favorite: palette.roseDeep,
   favoriteSoft: palette.roseSoft,
-  rating: palette.champagneDeep,
-  ratingSoft: palette.champagneSoft,
+  pick: palette.champagneDeep,
+  pickSoft: palette.champagneSoft,
   danger: palette.red,
   dangerSoft: palette.redSoft,
 

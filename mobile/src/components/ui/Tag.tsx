@@ -5,14 +5,14 @@ import { chromeFontScale, colors, radius, space } from '@/src/theme';
 import { IconName } from '@/src/lib/categories';
 import { AppText } from './AppText';
 
-type Tint = 'neutral' | 'accent' | 'social' | 'favorite' | 'rating';
+type Tint = 'neutral' | 'accent' | 'social' | 'favorite' | 'pick';
 
 const tints: Record<Tint, { bg: string; fg: string }> = {
   neutral: { bg: colors.fill, fg: colors.textSecondary },
   accent: { bg: colors.accentSoft, fg: colors.accent },
   social: { bg: colors.socialSoft, fg: colors.social },
   favorite: { bg: colors.favoriteSoft, fg: colors.favorite },
-  rating: { bg: colors.ratingSoft, fg: colors.rating },
+  pick: { bg: colors.pickSoft, fg: colors.pick },
 };
 
 /** Small non-interactive label, such as a category or "Only you". */

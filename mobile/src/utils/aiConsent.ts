@@ -14,4 +14,4 @@ export async function setAiConsent(granted: boolean): Promise<void> {
 }
 
 export const AI_CONSENT_MESSAGE =
-  'To write this summary, Haritaly sends the ratings, notes and favorite food and drinks that you and your friends saved for this place to OpenAI. Names, email addresses and photos are not sent.';
+  'To write this summary, Haritaly sends the notes and favorite food and drinks that you and your friends saved for this place to OpenAI. Names, email addresses and photos are not sent.';
