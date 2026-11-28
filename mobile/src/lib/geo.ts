@@ -10,6 +10,20 @@ export const METERS_PER_DEGREE = 111_320;
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
+/**
+ * A point rounded to two decimals, about a kilometre: 0.01° is 1.1 km north–south and a little less east–west.
+ * Used when the server only needs an area, so it never receives exactly where the user is.
+ */
+export function roundToKilometer(point: Coordinates): Coordinates {
+  return {
+    latitude: Math.round(point.latitude * 100) / 100,
+    longitude: Math.round(point.longitude * 100) / 100,
+  };
+}
+
+/** The farthest a rounded point can be from the real one: half the diagonal of a 0.01° cell is at most 790 m. */
+export const ROUNDING_MARGIN_M = 800;
+
 /** Great-circle distance in meters. */
 export function distanceInMeters(a: Coordinates, b: Coordinates): number {
   const dLat = toRad(b.latitude - a.latitude);
