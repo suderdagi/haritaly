@@ -1,5 +1,9 @@
 import { api } from './client';
 import { Photo, Place, PlaceInput, PlaceSummary, ReportReason } from '@/src/types';
+import { ROUNDING_MARGIN_M, roundToKilometer } from '@/src/lib/geo';
+
+// The nearby endpoint accepts radii up to 50 km
+const MAX_NEARBY_RADIUS_M = 50_000;
 
 export interface PhotoUpload {
   uri: string;
@@ -10,9 +14,18 @@ export interface PhotoUpload {
 export const placesAPI = {
   getMyPlaces: () => api.get<Place[]>('/places'),
 
-  /** Friends' places within `radius` meters, sorted by distance. */
-  getNearbyPlaces: (lat: number, lng: number, radius = 5000) =>
-    api.get<Place[]>('/places/nearby', { lat, lng, radius }),
+  /**
+   * Friends' places within `radius` meters, sorted by distance. The server only needs the area, so it gets the
+   * center rounded to about a kilometre, with the radius widened by the most the rounding can move it.
+   */
+  getNearbyPlaces: (lat: number, lng: number, radius = 5000) => {
+    const center = roundToKilometer({ latitude: lat, longitude: lng });
+    return api.get<Place[]>('/places/nearby', {
+      lat: center.latitude,
+      lng: center.longitude,
+      radius: Math.min(Math.round(radius + ROUNDING_MARGIN_M), MAX_NEARBY_RADIUS_M),
+    });
+  },
 
   getPlaceDetails: (placeId: number) => api.get<Place>(`/places/${placeId}`),
 

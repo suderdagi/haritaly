@@ -96,7 +96,8 @@ export default function MapScreen() {
     (force = false) => {
       const r = regionRef.current;
       const radiusM = Math.round(Math.min(Math.max(regionRadius(r), MIN_RADIUS_M), MAX_RADIUS_M));
-      const query = `${r.latitude.toFixed(4)},${r.longitude.toFixed(4)},${radiusM}`;
+      // Requests go out rounded to about a kilometre (placesAPI), so moving within that adds nothing new
+      const query = `${r.latitude.toFixed(2)},${r.longitude.toFixed(2)},${radiusM}`;
       if (!force && query === lastQuery.current) return;
       lastQuery.current = query;
       fetchFriendsNear(r.latitude, r.longitude, radiusM);
